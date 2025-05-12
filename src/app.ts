@@ -15,11 +15,9 @@ import {
   rateLimitOptions,
 } from './utils/securityConfig';
 import logger from './utils/logger';
-import path, { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import path from 'path';
 
-const __filename: string = fileURLToPath(import.meta.url);
-const __dirname: string = dirname(__filename);
+const __dirname: string = path.dirname(__filename);
 
 const swaggerDocument: any = YAML.load('./swagger.yaml');
 
@@ -50,7 +48,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use('/api/v1', routes);
+app.use('/api/v2', routes);
 
 app.use(notFound);
 app.use(errorHandler);
