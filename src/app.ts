@@ -17,8 +17,6 @@ import {
 import logger from './utils/logger';
 import path from 'path';
 
-const __dirname: string = path.dirname(__filename);
-
 const swaggerDocument: any = YAML.load('./swagger.yaml');
 
 const app: Application = express();

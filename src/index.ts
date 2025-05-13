@@ -6,7 +6,6 @@ import path from 'path';
 import fs from 'fs';
 import type { AddressInfo } from 'net';
 
-const __dirname: string = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
 const documentsUploadDir = path.join(uploadsDir, 'documents');
 
@@ -37,7 +36,10 @@ const startServer = async (): Promise<void> => {
       );
     });
   } catch (error: unknown) {
-    logger.error('Failed to start server:', error instanceof Error ? error : String(error));
+    logger.error(
+      'Failed to start server:',
+      error instanceof Error ? error : String(error)
+    );
     process.exit(1);
   }
 };

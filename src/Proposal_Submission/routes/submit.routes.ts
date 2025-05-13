@@ -1,15 +1,18 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request } from 'express';
 import submitController from '../controllers/submit.controller';
-import multer, { FileFilterCallback, diskStorage } from 'multer';
+import multer, { FileFilterCallback } from 'multer';
 import path from 'path';
 import { rateLimiter } from '../../middleware/auth.middleware';
 
 const router = Router();
-const __dirname: string = path.dirname(__filename);
 
 // Configure multer for file uploads
-export const storage = diskStorage({
-  destination: function (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
+export const storage = multer.diskStorage({
+  destination: function (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void
+  ) {
     // Different destinations based on file type
     if (file.fieldname === 'cvFile' || file.fieldname === 'docFile') {
       cb(null, path.join(__dirname, '../uploads/documents/'));
@@ -17,13 +20,17 @@ export const storage = diskStorage({
       cb(null, path.join(__dirname, '../uploads/'));
     }
   },
-  filename: function (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
+  filename: function (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void
+  ) {
     cb(null, `${Date.now()}-${path.basename(file.originalname)}`);
   },
 });
 
 export const fileFilter = (
-  req: Request,
+  _req: Request,
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
@@ -38,10 +45,7 @@ export const fileFilter = (
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(
-        new Error('Invalid file type. Only PDF, DOC, and DOCX are allowed.'),
-        false
-      );
+      cb(new Error('Invalid file type. Only PDF, DOC, and DOCX are allowed.'));
     }
   } else {
     cb(null, true);
