@@ -139,8 +139,8 @@ class ReviewerController {
 
       // Update reviewer profile
       reviewer.name = name;
-      reviewer.faculty = faculty._id;
-      reviewer.department = department._id;
+      reviewer.faculty = faculty._id as unknown as Types.ObjectId;
+      reviewer.department = department._id as unknown as Types.ObjectId;
       reviewer.phoneNumber = phoneNumber;
       reviewer.academicTitle = academicTitle;
       reviewer.alternativeEmail = alternativeEmail;
