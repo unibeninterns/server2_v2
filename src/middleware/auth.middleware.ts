@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError, ForbiddenError } from '../utils/customErrors';
 import tokenService from '../services/token.service';
 import User from '../model/user.model';
+import Reviewer from '../Reviewers/model/reviewer.model';
 
 interface UserPayload {
   userId: string;
@@ -40,6 +41,52 @@ const authenticateAdminToken = async (
 
     req.user = user;
     next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Authenticate reviewer access token
+const authenticateReviewerToken = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.split(' ')[1];
+
+    if (!token) {
+      throw new UnauthorizedError('Access token required');
+    }
+
+    const payload = (await tokenService.verifyAccessToken(
+      token
+    )) as UserPayload;
+    const user = await User.findById(payload.userId);
+
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+    
+    // For reviewer, check the Reviewer model
+    if (user.role === 'reviewer') {
+      const reviewer = await Reviewer.findById(payload.userId);
+
+      if (!reviewer) {
+        throw new UnauthorizedError('Reviewer not found');
+      }
+
+      req.user = {
+        userId: payload.userId,
+        email: reviewer.email,
+        role: 'reviewer'
+      };
+      
+      next();
+    } else {
+      throw new ForbiddenError('Access denied: Reviewer privileges required');
+    }
   } catch (error) {
     next(error);
   }
@@ -130,6 +177,7 @@ const rateLimiter = (limit: number, windowMs: number) => {
 
 export {
   authenticateAdminToken,
+  authenticateReviewerToken,
   authenticateToken,
   authorizeModeration,
   rateLimiter,
