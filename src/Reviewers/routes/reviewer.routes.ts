@@ -1,7 +1,10 @@
 import express from 'express';
 import reviewerController from '../controllers/reviewer.controller';
-import { authenticateAdminToken, authenticateToken, authenticateReviewerToken } from '../middleware/auth.middleware';
-import validateRequest from '../middleware/validateRequest';
+import {
+  authenticateAdminToken,
+  authenticateReviewerToken,
+} from '../../middleware/auth.middleware';
+import validateRequest from '../../middleware/validateRequest';
 import { z } from 'zod';
 
 const router = express.Router();
@@ -9,8 +12,8 @@ const router = express.Router();
 // Validation schemas
 const inviteReviewerSchema = z.object({
   body: z.object({
-    email: z.string().email('Please provide a valid email address')
-  })
+    email: z.string().email('Please provide a valid email address'),
+  }),
 });
 
 const completeProfileSchema = z.object({
@@ -20,11 +23,14 @@ const completeProfileSchema = z.object({
     departmentId: z.string().min(1, 'Department is required'),
     phoneNumber: z.string().min(10, 'Please provide a valid phone number'),
     academicTitle: z.string().optional(),
-    alternativeEmail: z.string().email('Please provide a valid email address').optional()
+    alternativeEmail: z
+      .string()
+      .email('Please provide a valid email address')
+      .optional(),
   }),
   params: z.object({
-    token: z.string().min(1, 'Token is required')
-  })
+    token: z.string().min(1, 'Token is required'),
+  }),
 });
 
 // Admin routes - need admin authentication
@@ -35,17 +41,9 @@ router.post(
   reviewerController.inviteReviewer
 );
 
-router.get(
-  '/',
-  authenticateAdminToken,
-  reviewerController.getAllReviewers
-);
+router.get('/', authenticateAdminToken, reviewerController.getAllReviewers);
 
-router.get(
-  '/:id',
-  authenticateAdminToken,
-  reviewerController.getReviewerById
-);
+router.get('/:id', authenticateAdminToken, reviewerController.getReviewerById);
 
 router.delete(
   '/:id',

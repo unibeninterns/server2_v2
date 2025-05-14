@@ -4,6 +4,7 @@ import facultyRoutes from '../Proposal_Submission/routes/faculty.routes';
 import departmentRoutes from '../Proposal_Submission/routes/department.routes';
 import adminRoutes from './admin.routes';
 import authRoutes from './auth.routes';
+import researcherRoutes from '../researchers/routes/researcher.routes';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.use('/faculties', facultyRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/admin', adminRoutes);
 router.use('/auth', authRoutes);
+router.use('/researcher', researcherRoutes);
 
 // Root route
 router.get('/', (req, res) => {

@@ -4,6 +4,8 @@ import {
   authenticateAdminToken,
   rateLimiter,
 } from '../middleware/auth.middleware';
+import researcherManagementRoutes from '../researchers/routes/researcher-management.routes';
+
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
@@ -32,5 +34,7 @@ router.get(
   adminRateLimiter,
   adminController.getProposalStatistics
 );
+
+router.use('/researcher', researcherManagementRoutes);
 
 export default router;

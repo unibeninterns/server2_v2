@@ -1,14 +1,19 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import Reviewer, { ReviewerStatus } from '../model/reviewer.model';
-import Proposal from '../Proposal_Submission/models/proposal.model';
-import Faculty from '../Proposal_Submission/models/faculty.model';
-import Department from '../Proposal_Submission/models/department.model';
-import emailService from '../services/email.service';
-import { BadRequestError, NotFoundError, UnauthorizedError } from '../utils/customErrors';
-import asyncHandler from '../utils/asyncHandler';
-import logger from '../utils/logger';
-import generateSecurePassword from '../utils/passwordGenerator';
+import Proposal from '../../Proposal_Submission/models/proposal.model';
+import Faculty from '../../Proposal_Submission/models/faculty.model';
+import Department from '../../Proposal_Submission/models/department.model';
+import emailService from '../../services/email.service';
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../utils/customErrors';
+import asyncHandler from '../../utils/asyncHandler';
+import logger from '../../utils/logger';
+import generateSecurePassword from '../../utils/passwordGenerator';
+import { Types } from 'mongoose';
 
 interface IReviewerQuery {
   status?: string;
@@ -49,7 +54,9 @@ class ReviewerController {
 
       const existingReviewer = await Reviewer.findOne({ email });
       if (existingReviewer) {
-        logger.warn(`Attempt to invite already registered reviewer email: ${email}`);
+        logger.warn(
+          `Attempt to invite already registered reviewer email: ${email}`
+        );
         throw new BadRequestError('Email already registered as a reviewer');
       }
 
@@ -86,11 +93,23 @@ class ReviewerController {
   completeReviewerProfile = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const { token } = req.params;
-      const { name, facultyId, departmentId, phoneNumber, academicTitle, alternativeEmail } = req.body;
+      const {
+        name,
+        facultyId,
+        departmentId,
+        phoneNumber,
+        academicTitle,
+        alternativeEmail,
+      } = req.body;
 
-      logger.info(`Reviewer profile completion attempt with token: ${token.substring(0, 8)}...`);
+      logger.info(
+        `Reviewer profile completion attempt with token: ${token.substring(0, 8)}...`
+      );
 
-      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+      const hashedToken = crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
 
       const reviewer = await Reviewer.findOne({
         inviteToken: hashedToken,
@@ -98,7 +117,9 @@ class ReviewerController {
       });
 
       if (!reviewer) {
-        logger.warn(`Invalid or expired reviewer invitation token: ${token.substring(0, 8)}...`);
+        logger.warn(
+          `Invalid or expired reviewer invitation token: ${token.substring(0, 8)}...`
+        );
         throw new BadRequestError('Invalid or expired invitation token');
       }
 
@@ -133,12 +154,16 @@ class ReviewerController {
       logger.info(`Reviewer profile completed for: ${reviewer.email}`);
 
       // Send login credentials to the reviewer
-      await emailService.sendReviewerCredentialsEmail(reviewer.email, generatedPassword);
+      await emailService.sendReviewerCredentialsEmail(
+        reviewer.email,
+        generatedPassword
+      );
       logger.info(`Login credentials sent to reviewer: ${reviewer.email}`);
 
       res.status(200).json({
         success: true,
-        message: 'Profile completed successfully. Login credentials have been sent to your email.',
+        message:
+          'Profile completed successfully. Login credentials have been sent to your email.',
       });
     }
   );
@@ -149,7 +174,9 @@ class ReviewerController {
       const user = (req as AuthenticatedRequest).user;
       // Check if user is admin
       if (user.role !== 'admin') {
-        throw new UnauthorizedError('You do not have permission to access this resource');
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
       }
 
       const {
@@ -206,7 +233,9 @@ class ReviewerController {
       const user = (req as AuthenticatedRequest).user;
       // Check if user is admin
       if (user.role !== 'admin') {
-        throw new UnauthorizedError('You do not have permission to access this resource');
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
       }
 
       const { id } = req.params;
@@ -234,7 +263,9 @@ class ReviewerController {
       const user = (req as AuthenticatedRequest).user;
       // Check if user is admin
       if (user.role !== 'admin') {
-        throw new UnauthorizedError('You do not have permission to access this resource');
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
       }
 
       const { id } = req.params;
@@ -246,7 +277,9 @@ class ReviewerController {
 
       // Check if reviewer has assigned proposals
       if (reviewer.assignedProposals.length > 0) {
-        throw new BadRequestError('Cannot delete reviewer with assigned proposals. Please reassign them first.');
+        throw new BadRequestError(
+          'Cannot delete reviewer with assigned proposals. Please reassign them first.'
+        );
       }
 
       await Reviewer.findByIdAndDelete(id);
@@ -265,7 +298,9 @@ class ReviewerController {
       const user = (req as AuthenticatedRequest).user;
       // Check if user is admin
       if (user.role !== 'admin') {
-        throw new UnauthorizedError('You do not have permission to access this resource');
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
       }
 
       const { id } = req.params;
@@ -276,7 +311,9 @@ class ReviewerController {
       }
 
       if (reviewer.status !== ReviewerStatus.PENDING) {
-        throw new BadRequestError('Can only resend invitations for pending reviewers');
+        throw new BadRequestError(
+          'Can only resend invitations for pending reviewers'
+        );
       }
 
       // Generate new invite token
@@ -288,13 +325,18 @@ class ReviewerController {
 
       // Update reviewer with new token
       reviewer.inviteToken = hashedToken;
-      reviewer.inviteTokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      reviewer.inviteTokenExpires = new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      ); // 30 days
 
       await reviewer.save();
       logger.info(`Reviewer invitation resent for email: ${reviewer.email}`);
 
       // Send invitation email
-      await emailService.sendReviewerInvitationEmail(reviewer.email, inviteToken);
+      await emailService.sendReviewerInvitationEmail(
+        reviewer.email,
+        inviteToken
+      );
       logger.info(`Reviewer invitation email resent to: ${reviewer.email}`);
 
       res.status(200).json({
@@ -316,16 +358,20 @@ class ReviewerController {
 
       // Get assigned proposals with details
       const assignedProposals = await Proposal.find({
-        _id: { $in: reviewer.assignedProposals }
+        _id: { $in: reviewer.assignedProposals },
       })
-      .populate('submitter', 'name email')
-      .populate('faculty', 'name code')
-      .populate('department', 'name code')
-      .select('-docFile -cvFile');
+        .populate('submitter', 'name email')
+        .populate('faculty', 'name code')
+        .populate('department', 'name code')
+        .select('-docFile -cvFile');
 
       // Calculate statistics
-      const pendingReviews = assignedProposals.filter(p => p.reviewStatus === 'pending').length;
-      const completedReviews = assignedProposals.filter(p => p.reviewStatus === 'reviewed').length;
+      const pendingReviews = assignedProposals.filter(
+        (p) => p.reviewStatus === 'pending'
+      ).length;
+      const completedReviews = assignedProposals.filter(
+        (p) => p.reviewStatus === 'reviewed'
+      ).length;
       const totalAssigned = assignedProposals.length;
 
       logger.info(`Reviewer ${userId} viewed their dashboard`);
@@ -338,15 +384,15 @@ class ReviewerController {
             email: reviewer.email,
             department: reviewer.department,
             faculty: reviewer.faculty,
-            academicTitle: reviewer.academicTitle
+            academicTitle: reviewer.academicTitle,
           },
           statistics: {
             pendingReviews,
             completedReviews,
-            totalAssigned
+            totalAssigned,
           },
-          assignedProposals
-        }
+          assignedProposals,
+        },
       });
     }
   );

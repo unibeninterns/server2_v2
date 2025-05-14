@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 export enum ReviewerStatus {
   PENDING = 'pending',
   ACTIVE = 'active',
-  INACTIVE = 'inactive'
+  INACTIVE = 'inactive',
 }
 
 export interface IReviewer extends Document {
@@ -13,8 +13,8 @@ export interface IReviewer extends Document {
   alternativeEmail?: string;
   password?: string;
   phoneNumber?: string;
-  faculty?: Types.ObjectId;
-  department?: Types.ObjectId;
+  faculty: Types.ObjectId;
+  department: Types.ObjectId;
   academicTitle?: string;
   status: ReviewerStatus;
   inviteToken?: string;
@@ -111,9 +111,15 @@ ReviewerSchema.pre('save', async function (next) {
   next();
 });
 
-ReviewerSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+ReviewerSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-export default mongoose.model<IReviewer>('Reviewer', ReviewerSchema, 'Reviewers');
+export default mongoose.model<IReviewer>(
+  'Reviewer',
+  ReviewerSchema,
+  'Reviewers'
+);
