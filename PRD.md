@@ -5,6 +5,16 @@
 You should note that I have already started with the implementation of this already. Done everything that deals with the submission and all, so it's mainly the review remaining now.
 I'll like something like a button at the top right of the page where research proposals are reviewed which will be called review guidelines as they'll take you to another tab where the guidelines or rules for proposal grading will be shown with examples if possible.
 Also if images are added showing the ui pages build exactly what's in the image making it responsive and all while adding all the neccessary functionalities for the page that may not have been included in the PRD following the consistent design already being used.
+Also this is the rules being used to assign reviewers
+Review Clusters
+
+(1) Life sciences| Agric/ Vet Medicine/ Basic Medical Sciences
+(2) Pharmacy/Dentistry/Medicine
+(3) Management Sciences/ Education/ Social Sciences/ Vocational Education
+(4) Law/Arts/Institute of Education
+(5) Engineering/ Physical Sciences/Environmental Sciences
+
+Let me explain, If a proposal is submitted by a staff or master's student from the Engineering faculty, then the appropriate reviewer should be from either the faculty of physical science or environmental science but not engineering. and vice-versa for any faculty in relation to the other faculties in their respective clusters.
 
 ## 1. Introduction
 
