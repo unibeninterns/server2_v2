@@ -8,8 +8,8 @@ Also if images are added showing the ui pages build exactly what's in the image 
 Also this is the rules being used to assign reviewers
 Review Clusters
 
-(1) Life sciences| Agric/ Vet Medicine/ Basic Medical Sciences
-(2) Pharmacy/Dentistry/Medicine
+(1) Life sciences| Agric/ Vet Medicine
+(2) Pharmacy/Dentistry/Medicine/ Basic Medical Sciences
 (3) Management Sciences/ Education/ Social Sciences/ Vocational Education
 (4) Law/Arts/Institute of Education
 (5) Engineering/ Physical Sciences/Environmental Sciences
