@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import User from '../../model/user.model';
-import Proposal from '../models/proposal.model';
+import Proposal, { SubmitterType } from '../models/proposal.model';
 import { NotFoundError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
+import { Types } from 'mongoose';
 
 interface ICoInvestigator {
   name: string;
@@ -110,7 +111,7 @@ class SubmitController {
 
       // Create a new proposal
       const proposal = new Proposal({
-        submitterType: 'staff',
+        submitterType: SubmitterType.STAFF,
         projectTitle,
         submitter: user._id,
         problemStatement: backgroundProblem,
@@ -133,7 +134,7 @@ class SubmitController {
 
       // Add proposal to user's proposals
       user.proposals = user.proposals || [];
-      user.proposals.push(proposal._id);
+      user.proposals.push(proposal._id as any);
       await user.save();
 
       // Send notification email to reviewers
@@ -166,7 +167,7 @@ class SubmitController {
       res.status(201).json({
         success: true,
         message: 'Staff proposal submitted successfully and is under review.',
-        data: { proposalId: proposal._id.toString() },
+        data: { proposalId: (proposal._id as Types.ObjectId).toString() },
       });
     }
   );
@@ -197,7 +198,7 @@ class SubmitController {
 
       // Create a new proposal with string literal instead of enum
       const proposal = new Proposal({
-        submitterType: 'master_student',
+        submitterType: SubmitterType.MASTER_STUDENT,
         submitter: user._id,
       });
 
@@ -212,7 +213,7 @@ class SubmitController {
 
       // Add proposal to user's proposals
       user.proposals = user.proposals || [];
-      user.proposals.push(proposal._id);
+      user.proposals.push(proposal._id as any);
       await user.save();
 
       // Send notification email to reviewers
@@ -223,7 +224,7 @@ class SubmitController {
           reviewerEmails,
           user.name,
           'Master Student Proposal',
-          'master_student'
+          SubmitterType.MASTER_STUDENT
         );
 
         // Send confirmation to submitter
@@ -231,7 +232,7 @@ class SubmitController {
           email,
           fullName,
           'Master Student Proposal',
-          'master_student'
+          SubmitterType.MASTER_STUDENT
         );
       } catch (error) {
         logger.error(
@@ -247,7 +248,7 @@ class SubmitController {
         success: true,
         message:
           'Master student proposal submitted successfully and is under review.',
-        data: { proposalId: proposal._id.toString() },
+        data: { proposalId: (proposal._id as Types.ObjectId).toString() },
       });
     }
   );

@@ -1,13 +1,8 @@
 import { Request, Response } from 'express';
 import Proposal from '../Proposal_Submission/models/proposal.model';
-import {
-  BadRequestError,
-  NotFoundError,
-  UnauthorizedError,
-} from '../utils/customErrors';
+import { NotFoundError, UnauthorizedError } from '../utils/customErrors';
 import asyncHandler from '../utils/asyncHandler';
 import logger from '../utils/logger';
-import emailService from '../services/email.service';
 
 interface IProposalQuery {
   status?: string;
@@ -48,22 +43,13 @@ interface AdminAuthenticatedRequest extends Request {
   };
 }
 
-type ProposalStatus =
-  | 'submitted'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'revision_requested';
-
 class AdminController {
   // Get all proposals with pagination and filtering
   getAllProposals = asyncHandler(
-    async (
-      req: AdminAuthenticatedRequest,
-      res: Response<IProposalResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IProposalResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
       // Check if user is admin
-      if (req.user.role !== 'admin') {
+      if (user.role !== 'admin') {
         throw new UnauthorizedError(
           'You do not have permission to access this resource'
         );
@@ -105,7 +91,7 @@ class AdminController {
 
       const totalProposals = await Proposal.countDocuments(query);
 
-      logger.info(`Admin ${req.user.id} retrieved proposals list`);
+      logger.info(`Admin ${user.id} retrieved proposals list`);
 
       res.status(200).json({
         success: true,
@@ -119,12 +105,10 @@ class AdminController {
 
   // Get proposal by ID
   getProposalById = asyncHandler(
-    async (
-      req: AdminAuthenticatedRequest,
-      res: Response<IProposalResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IProposalResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
       // Check if user is admin
-      if (req.user.role !== 'admin') {
+      if (user.role !== 'admin') {
         throw new UnauthorizedError(
           'You do not have permission to access this resource'
         );
@@ -141,7 +125,7 @@ class AdminController {
         throw new NotFoundError('Proposal not found');
       }
 
-      logger.info(`Admin ${req.user.id} retrieved proposal ${id}`);
+      logger.info(`Admin ${user.id} retrieved proposal ${id}`);
 
       res.status(200).json({
         success: true,
@@ -150,82 +134,12 @@ class AdminController {
     }
   );
 
-  // Update proposal status
-  updateProposalStatus = asyncHandler(
-    async (
-      req: AdminAuthenticatedRequest,
-      res: Response<IProposalResponse>
-    ): Promise<void> => {
-      const { id } = req.params;
-      const { status, comment } = req.body;
-
-      // Check if user is admin
-      if (req.user.role !== 'admin') {
-        throw new UnauthorizedError(
-          'You do not have permission to perform this action'
-        );
-      }
-
-      // Valid status values
-      const validStatuses: ProposalStatus[] = [
-        'submitted',
-        'under_review',
-        'approved',
-        'rejected',
-        'revision_requested',
-      ];
-
-      if (!validStatuses.includes(status as ProposalStatus)) {
-        throw new BadRequestError('Invalid status value');
-      }
-
-      const proposal = await Proposal.findById(id).populate('submitter');
-
-      if (!proposal) {
-        throw new NotFoundError('Proposal not found');
-      }
-
-      // Update proposal status
-      proposal.status = status as ProposalStatus;
-      await proposal.save();
-
-      // Send email notification to the submitter if email service is available
-      try {
-        if (proposal.submitter && proposal.submitter.email) {
-          await emailService.sendProposalStatusUpdateEmail(
-            proposal.submitter.email,
-            proposal.submitter.name || 'Researcher',
-            proposal.projectTitle || 'Your proposal',
-            status
-          );
-        }
-      } catch (error) {
-        logger.error(
-          'Failed to send status update email:',
-          error instanceof Error ? error.message : 'Unknown error'
-        );
-      }
-
-      logger.info(
-        `Proposal ${id} status updated to ${status} by admin ${req.user.id}`
-      );
-
-      res.status(200).json({
-        success: true,
-        message: `Proposal status updated to ${status}`,
-        data: { proposalId: proposal._id, status: proposal.status },
-      });
-    }
-  );
-
   // Get proposal statistics
   getProposalStatistics = asyncHandler(
-    async (
-      req: AdminAuthenticatedRequest,
-      res: Response<IStatisticsResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IStatisticsResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
       // Check if user is admin
-      if (req.user.role !== 'admin') {
+      if (user.role !== 'admin') {
         throw new UnauthorizedError(
           'You do not have permission to access this resource'
         );
@@ -248,7 +162,7 @@ class AdminController {
         statusStats[item._id] = item.count;
       });
 
-      logger.info(`Admin ${req.user.id} retrieved proposal statistics`);
+      logger.info(`Admin ${user.id} retrieved proposal statistics`);
 
       res.status(200).json({
         success: true,

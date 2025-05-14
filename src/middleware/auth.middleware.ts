@@ -25,7 +25,9 @@ const authenticateAdminToken = async (
       throw new UnauthorizedError('Access token required');
     }
 
-    const payload = await tokenService.verifyAccessToken(token) as UserPayload;
+    const payload = (await tokenService.verifyAccessToken(
+      token
+    )) as UserPayload;
     const user = await User.findById(payload.userId);
 
     if (!user) {
@@ -34,42 +36,6 @@ const authenticateAdminToken = async (
 
     if (user.role !== 'admin') {
       throw new ForbiddenError('Access denied: Admin privileges required');
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Authenticate researcher access token
-const authenticateResearcherToken = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.split(' ')[1];
-
-    if (!token) {
-      throw new UnauthorizedError('Access token required');
-    }
-
-    const payload = await tokenService.verifyAccessToken(token) as UserPayload;
-    const user = await User.findById(payload.userId);
-
-    if (!user) {
-      throw new UnauthorizedError('User not found');
-    }
-
-    if (user.role !== 'researcher') {
-      throw new ForbiddenError('Access denied: Researcher privileges required');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedError('Your account is not active');
     }
 
     req.user = user;
@@ -93,7 +59,9 @@ const authenticateToken = async (
       throw new UnauthorizedError('Access token required');
     }
 
-    const payload = await tokenService.verifyAccessToken(token) as UserPayload;
+    const payload = (await tokenService.verifyAccessToken(
+      token
+    )) as UserPayload;
     const user = await User.findById(payload.userId);
 
     if (!user) {
@@ -102,10 +70,6 @@ const authenticateToken = async (
 
     if (!['admin', 'researcher'].includes(user.role)) {
       throw new ForbiddenError('Invalid user role');
-    }
-
-    if (user.role === 'researcher' && !user.isActive) {
-      throw new UnauthorizedError('Your account is not active');
     }
 
     req.user = user;
@@ -166,7 +130,6 @@ const rateLimiter = (limit: number, windowMs: number) => {
 
 export {
   authenticateAdminToken,
-  authenticateResearcherToken,
   authenticateToken,
   authorizeModeration,
   rateLimiter,

@@ -1,12 +1,9 @@
 import express from 'express';
-import adminController from '../controllers/admin.controller.js';
+import adminController from '../controllers/admin.controller';
 import {
   authenticateAdminToken,
-  rateLimiter
-} from '../middleware/auth.middleware.js';
-import validateRequest from '../middleware/validateRequest.js';
-import { proposalStatusUpdateSchema } from '../validators/admin.validators.js';
-
+  rateLimiter,
+} from '../middleware/auth.middleware';
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
@@ -26,15 +23,6 @@ router.get(
   authenticateAdminToken,
   adminRateLimiter,
   adminController.getProposalById
-);
-
-// Update proposal status
-router.put(
-  '/proposals/:id/status',
-  authenticateAdminToken,
-  adminRateLimiter,
-  validateRequest(proposalStatusUpdateSchema),
-  adminController.updateProposalStatus
 );
 
 // Get proposal statistics

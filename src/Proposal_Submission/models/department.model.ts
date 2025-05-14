@@ -1,9 +1,9 @@
-import mongoose, { Document, Schema, Types } from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IDepartment extends Document {
   code: string;
   title: string;
-  faculty: Types.ObjectId | string;
+  faculty: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,7 +22,7 @@ const DepartmentSchema: Schema<IDepartment> = new Schema(
       maxlength: [255, 'Department title cannot exceed 255 characters'],
     },
     faculty: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: 'Faculty',
       required: [true, 'Faculty reference is required'],
     },

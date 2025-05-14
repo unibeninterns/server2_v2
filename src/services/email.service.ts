@@ -1,11 +1,15 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import logger from '../utils/logger';
 import validateEnv from '../utils/validateEnv';
+import { SubmitterType } from '../Proposal_Submission/models/proposal.model';
 
 validateEnv();
 
-type SubmitterType = 'staff' | 'student';
-type ProposalStatus = 'approved' | 'rejected' | 'revision_requested' | 'under_review';
+type ProposalStatus =
+  | 'approved'
+  | 'rejected'
+  | 'revision_requested'
+  | 'under_review';
 
 class EmailService {
   private transporter: Transporter;
@@ -13,8 +17,14 @@ class EmailService {
   private emailFrom: string;
 
   constructor() {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      throw new Error('SMTP configuration must be defined in environment variables');
+    if (
+      !process.env.SMTP_HOST ||
+      !process.env.SMTP_USER ||
+      !process.env.SMTP_PASS
+    ) {
+      throw new Error(
+        'SMTP configuration must be defined in environment variables'
+      );
     }
 
     this.transporter = nodemailer.createTransport({
@@ -38,7 +48,7 @@ class EmailService {
   }
 
   private getSubmitterTypeText(submitterType: SubmitterType): string {
-    return submitterType === 'staff' ? 'Staff Member' : 'Master\'s Student';
+    return submitterType === 'staff' ? 'Staff Member' : "Master's Student";
   }
 
   async sendProposalNotificationEmail(
@@ -51,7 +61,9 @@ class EmailService {
     const reviewUrl = `${this.frontendUrl}/admin/proposals`;
 
     // Handle comma-separated emails or single email
-    const recipients = Array.isArray(reviewerEmails) ? reviewerEmails : reviewerEmails.split(',').map((email) => email.trim());
+    const recipients = Array.isArray(reviewerEmails)
+      ? reviewerEmails
+      : reviewerEmails.split(',').map((email) => email.trim());
 
     try {
       await this.transporter.sendMail({
@@ -140,7 +152,10 @@ class EmailService {
         `Proposal notification email sent to reviewers: ${recipients.join(', ')}`
       );
     } catch (error) {
-      logger.error('Failed to send proposal notification email:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error(
+        'Failed to send proposal notification email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
     }
   }
 
@@ -218,7 +233,10 @@ class EmailService {
       });
       logger.info(`Submission confirmation email sent to ${email}`);
     } catch (error) {
-      logger.error('Failed to send submission confirmation email:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error(
+        'Failed to send submission confirmation email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
     }
   }
 
@@ -253,7 +271,10 @@ class EmailService {
       });
       logger.info(`Proposal status update email sent to ${email}`);
     } catch (error) {
-      logger.error('Failed to send proposal status update email:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error(
+        'Failed to send proposal status update email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
     }
   }
 }

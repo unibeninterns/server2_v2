@@ -15,9 +15,9 @@ export const storage = multer.diskStorage({
   ) {
     // Different destinations based on file type
     if (file.fieldname === 'cvFile' || file.fieldname === 'docFile') {
-      cb(null, path.join(__dirname, '../uploads/documents/'));
+      cb(null, path.join(process.cwd(), 'src', 'uploads', 'documents'));
     } else {
-      cb(null, path.join(__dirname, '../uploads/'));
+      cb(null, path.join(process.cwd(), 'src', 'uploads'));
     }
   },
   filename: function (

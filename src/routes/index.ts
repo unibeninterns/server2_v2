@@ -2,8 +2,8 @@ import { Router } from 'express';
 import submitRoutes from '../Proposal_Submission/routes/submit.routes';
 import facultyRoutes from '../Proposal_Submission/routes/faculty.routes';
 import departmentRoutes from '../Proposal_Submission/routes/department.routes';
-import adminRoutes from './admin.routes.js';
-import authRoutes from './auth.routes.js';
+import adminRoutes from './admin.routes';
+import authRoutes from './auth.routes';
 
 const router = Router();
 
