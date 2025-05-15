@@ -277,6 +277,489 @@ class EmailService {
       );
     }
   }
+
+  // Add to src/services/email.service.ts
+
+  async sendReviewerInvitationEmail(
+    email: string,
+    token: string
+  ): Promise<void> {
+    const inviteUrl = `${this.frontendUrl}/reviewer-register/${token}`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Invitation to join as a Research Proposal Reviewer',
+        html: `
+        <html>
+        <head>
+            <style type="text/css">
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .header {
+                    color: #AA319A;
+                    border-bottom: 2px solid #AA319A;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }
+                .content {
+                    padding: 15px;
+                    background-color: #ffffff;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }
+                .button {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #AA319A;
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #e0e0e0;
+                    font-size: 14px;
+                    color: #666666;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Invitation to Join as a Research Proposal Reviewer</h1>
+            </div>
+            
+            <div class="content">
+                <p>You have been invited to join the University of Benin Research Portal as a proposal reviewer.</p>
+                
+                <p>As a reviewer, you will play a vital role in evaluating research proposals submitted by faculty members and students.</p>
+                
+                <p>Please click the button below to complete your profile and accept this invitation:</p>
+                
+                <a href="${inviteUrl}" class="button">Complete Your Profile</a>
+                
+                <p>This invitation link will expire in 30 days.</p>
+                
+                <p>If you have any questions about this invitation, please contact the Research Directorate.</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Directorate of Research, Innovation and Development</strong></p>
+                <p>University of Benin • PMB 1154, Benin City, Nigeria</p>
+            </div>
+        </body>
+        </html>
+      `,
+      });
+      logger.info(`Reviewer invitation email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send reviewer invitation email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendReviewerCredentialsEmail(
+    email: string,
+    password: string
+  ): Promise<void> {
+    const loginUrl = `${this.frontendUrl}/reviewer-login`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Your Research Portal Reviewer Account Credentials',
+        html: `
+        <html>
+        <head>
+            <style type="text/css">
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .header {
+                    color: #AA319A;
+                    border-bottom: 2px solid #AA319A;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }
+                .content {
+                    padding: 15px;
+                    background-color: #ffffff;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }
+                .credentials {
+                    background-color: #f8e0f5;
+                    padding: 15px;
+                    border-left: 3px solid #AA319A;
+                    margin: 15px 0;
+                }
+                .button {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #AA319A;
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #e0e0e0;
+                    font-size: 14px;
+                    color: #666666;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Your Reviewer Account Credentials</h1>
+            </div>
+            
+            <div class="content">
+                <p>Your account has been created successfully on the University of Benin Research Portal as a proposal reviewer.</p>
+                
+                <div class="credentials">
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Temporary Password:</strong> ${password}</p>
+                </div>
+                
+                <p>Please click the button below to log in to your account:</p>
+                
+                <a href="${loginUrl}" class="button">Log In to Portal</a>
+                
+                <p>We recommend changing your password after your first login.</p>
+                
+                <p>If you did not expect to receive this email, please contact the Research Directorate immediately.</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Directorate of Research, Innovation and Development</strong></p>
+                <p>University of Benin • PMB 1154, Benin City, Nigeria</p>
+            </div>
+        </body>
+        </html>
+      `,
+      });
+      logger.info(`Reviewer credentials email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send reviewer credentials email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendReviewAssignmentEmail(
+    email: string,
+    proposalTitle: string,
+    researcherName: string
+  ): Promise<void> {
+    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'New Research Proposal Assignment',
+        html: `
+        <html>
+        <head>
+            <style type="text/css">
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .header {
+                    color: #AA319A;
+                    border-bottom: 2px solid #AA319A;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }
+                .content {
+                    padding: 15px;
+                    background-color: #ffffff;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }
+                .proposal-title {
+                    font-size: 18px;
+                    color: #AA319A;
+                    padding: 10px;
+                    background-color: #f8e0f5;
+                    border-left: 3px solid #AA319A;
+                    margin: 15px 0;
+                }
+                .button {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #AA319A;
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #e0e0e0;
+                    font-size: 14px;
+                    color: #666666;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>New Research Proposal Assignment</h1>
+            </div>
+            
+            <div class="content">
+                <p>You have been assigned to review a research proposal submitted by <strong>${researcherName}</strong> titled:</p>
+                
+                <div class="proposal-title">"${proposalTitle}"</div>
+                
+                <p>Please log in to the research portal to access the full proposal and complete your review at your earliest convenience.</p>
+                
+                <a href="${reviewUrl}" class="button">Review Proposal Now</a>
+                
+                <p>Your expert evaluation is vital to maintaining the quality of research at our institution.</p>
+                
+                <p>For any questions regarding the review process, please contact the Research Directorate.</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Directorate of Research, Innovation and Development</strong></p>
+                <p>University of Benin • PMB 1154, Benin City, Nigeria</p>
+            </div>
+        </body>
+        </html>
+      `,
+      });
+      logger.info(`Review assignment email sent to reviewer: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send review assignment email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendInvitationEmail(email: string, token: string): Promise<void> {
+    const inviteUrl = `${this.frontendUrl}/researcher-register/${token}`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Invitation to join the Research Portal',
+        html: `
+        <html>
+        <head>
+            <style type="text/css">
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .header {
+                    color: #AA319A;
+                    border-bottom: 2px solid #AA319A;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }
+                .content {
+                    padding: 15px;
+                    background-color: #ffffff;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }
+                .button {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #AA319A;
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #e0e0e0;
+                    font-size: 14px;
+                    color: #666666;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Research Portal Invitation</h1>
+            </div>
+            
+            <div class="content">
+                <p>You have been invited to join the University of Benin Research Portal as a researcher.</p>
+                
+                <p>Our portal allows you to submit research proposals, track their progress, and collaborate with other researchers.</p>
+                
+                <p>Please click the button below to complete your profile:</p>
+                
+                <a href="${inviteUrl}" class="button">Complete Your Profile</a>
+                
+                <p>This invitation link will expire in 30 days.</p>
+                
+                <p>If you have any questions about this invitation, please contact the Research Directorate.</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Directorate of Research, Innovation and Development</strong></p>
+                <p>University of Benin • PMB 1154, Benin City, Nigeria</p>
+            </div>
+        </body>
+        </html>
+      `,
+      });
+      logger.info(`Invitation email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send invitation email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendCredentialsEmail(email: string, password: string): Promise<void> {
+    const loginUrl = `${this.frontendUrl}/researcher-login`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Your Research Portal Account Credentials',
+        html: `
+        <html>
+        <head>
+            <style type="text/css">
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .header {
+                    color: #AA319A;
+                    border-bottom: 2px solid #AA319A;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                }
+                .content {
+                    padding: 15px;
+                    background-color: #ffffff;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }
+                .credentials {
+                    background-color: #f8e0f5;
+                    padding: 15px;
+                    border-left: 3px solid #AA319A;
+                    margin: 15px 0;
+                }
+                .button {
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #AA319A;
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #e0e0e0;
+                    font-size: 14px;
+                    color: #666666;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Your Research Portal Account Credentials</h1>
+            </div>
+            
+            <div class="content">
+                <p>Your account has been created successfully on the University of Benin Research Portal.</p>
+                
+                <div class="credentials">
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Temporary Password:</strong> ${password}</p>
+                </div>
+                
+                <p>Please click the button below to log in to your account:</p>
+                
+                <a href="${loginUrl}" class="button">Log In to Portal</a>
+                
+                <p>We recommend changing your password after your first login.</p>
+                
+                <p>If you did not expect to receive this email, please contact the Research Directorate immediately.</p>
+            </div>
+            
+            <div class="footer">
+                <p><strong>Directorate of Research, Innovation and Development</strong></p>
+                <p>University of Benin • PMB 1154, Benin City, Nigeria</p>
+            </div>
+        </body>
+        </html>
+      `,
+      });
+      logger.info(`Credentials email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send credentials email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
 }
 
 export default new EmailService();

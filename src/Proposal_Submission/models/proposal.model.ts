@@ -39,6 +39,7 @@ export interface IProposal extends Document {
   cvFile?: string;
   docFile?: string;
   status: ProposalStatus;
+  reviewStatus?: 'pending' | 'reviewed';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -154,6 +155,11 @@ const ProposalSchema: Schema<IProposal> = new Schema(
       type: String,
       enum: Object.values(ProposalStatus),
       default: ProposalStatus.SUBMITTED,
+    },
+    reviewStatus: {
+      type: String,
+      enum: ['pending', 'reviewed'],
+      default: 'pending',
     },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

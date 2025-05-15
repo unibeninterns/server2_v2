@@ -168,6 +168,91 @@ class ReviewerController {
     }
   );
 
+  // Add a reviewer profile manually (without invitation)
+  addReviewerProfile = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const user = (req as AuthenticatedRequest).user;
+      // Check if user is admin
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const {
+        email,
+        name,
+        facultyId,
+        departmentId,
+        phoneNumber,
+        academicTitle,
+        alternativeEmail,
+      } = req.body;
+
+      logger.info(
+        `Manual reviewer profile creation request for email: ${email}`
+      );
+
+      // Check if reviewer already exists
+      const existingReviewer = await Reviewer.findOne({ email });
+      if (existingReviewer) {
+        logger.warn(
+          `Attempt to create profile for already registered email: ${email}`
+        );
+        throw new BadRequestError('Email already registered as a reviewer');
+      }
+
+      // Validate faculty and department
+      const faculty = await Faculty.findById(facultyId);
+      if (!faculty) {
+        throw new BadRequestError('Invalid faculty selected');
+      }
+
+      const department = await Department.findById(departmentId);
+      if (!department || department.faculty.toString() !== facultyId) {
+        throw new BadRequestError('Invalid department selected');
+      }
+
+      // Generate a secure password for the reviewer
+      const generatedPassword = generateSecurePassword();
+
+      // Create new reviewer profile
+      const newReviewer = await Reviewer.create({
+        email,
+        name,
+        faculty: faculty._id as unknown as Types.ObjectId,
+        department: department._id as unknown as Types.ObjectId,
+        phoneNumber,
+        academicTitle,
+        alternativeEmail,
+        password: generatedPassword,
+        status: ReviewerStatus.ACTIVE,
+        completedAt: new Date(),
+        assignedProposals: [],
+      });
+
+      logger.info(`Reviewer profile manually created for: ${email}`);
+
+      // Send login credentials to the reviewer
+      await emailService.sendReviewerCredentialsEmail(email, generatedPassword);
+      logger.info(`Login credentials sent to reviewer: ${email}`);
+
+      res.status(201).json({
+        success: true,
+        message:
+          'Reviewer profile created successfully. Login credentials have been sent to their email.',
+        data: {
+          id: newReviewer._id,
+          email: newReviewer.email,
+          name: newReviewer.name,
+          faculty: faculty.name,
+          department: department.name,
+          academicTitle: newReviewer.academicTitle,
+        },
+      });
+    }
+  );
+
   // Get all reviewers with pagination and filtering
   getAllReviewers = asyncHandler(
     async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {

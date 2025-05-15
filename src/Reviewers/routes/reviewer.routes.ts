@@ -33,12 +33,34 @@ const completeProfileSchema = z.object({
   }),
 });
 
+const addReviewerSchema = z.object({
+  body: z.object({
+    email: z.string().email('Please provide a valid email address'),
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    facultyId: z.string().min(1, 'Faculty is required'),
+    departmentId: z.string().min(1, 'Department is required'),
+    phoneNumber: z.string().min(10, 'Please provide a valid phone number'),
+    academicTitle: z.string().optional(),
+    alternativeEmail: z
+      .string()
+      .email('Please provide a valid email address')
+      .optional(),
+  }),
+});
+
 // Admin routes - need admin authentication
 router.post(
   '/invite',
   authenticateAdminToken,
   validateRequest(inviteReviewerSchema),
   reviewerController.inviteReviewer
+);
+
+router.post(
+  '/add',
+  authenticateAdminToken,
+  validateRequest(addReviewerSchema),
+  reviewerController.addReviewerProfile
 );
 
 router.get('/', authenticateAdminToken, reviewerController.getAllReviewers);
