@@ -117,14 +117,6 @@ Concept note must not exceed 5 pages (excluding appendix).
 - Default scores should have slight variations to simulate real review patterns
 - Generate templated feedback explanations
 
-#### 3.3.3 Future AI Scoring Capabilities (Design Only)
-
-- Document structure for integration with NLP models
-- Scoring based on TETFund's evaluation criteria
-- Pattern for explanation generation for each score
-- Framework for bias detection and mitigation
-- System for model performance monitoring
-
 ### 3.4 Human Review Workflow
 
 #### 3.4.1 Reviewer Assignment
@@ -318,8 +310,6 @@ Concept note must not exceed 5 pages (excluding appendix).
 - Awards Collection
   - Funding decisions
   - Disbursement schedule
-  - Milestone tracking
-  - Reporting requirements
   - Budget modifications
 
 #### 5.3.2 Relationships and Indexing

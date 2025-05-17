@@ -127,3 +127,11 @@ router.put(
   validateRequest(proposalStatusUpdateSchema),
   adminController.updateProposalStatus
 );
+
+#### 3.3.3 Future AI Scoring Capabilities (Design Only)
+
+- Document structure for integration with NLP models
+- Scoring based on TETFund's evaluation criteria
+- Pattern for explanation generation for each score
+- Framework for bias detection and mitigation
+- System for model performance monitoring
