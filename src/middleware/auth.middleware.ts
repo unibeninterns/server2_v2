@@ -108,7 +108,7 @@ const authenticateReviewerToken = async (
     }
 
     // For reviewer, check the Reviewer model
-    if (user.role === 'reviewer') {
+    if (user.role === UserRole.REVIEWER) {
       const reviewer = await Reviewer.findById(payload.userId);
 
       if (!reviewer) {
@@ -153,7 +153,7 @@ const authenticateToken = async (
       throw new UnauthorizedError('User not found');
     }
 
-    if (!['admin', 'researcher'].includes(user.role)) {
+    if (!['admin', 'researcher', 'reviewer'].includes(user.role)) {
       throw new ForbiddenError('Invalid user role');
     }
 

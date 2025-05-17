@@ -2,9 +2,10 @@
 
 ## Product Requirements Document (PRD)
 
-You should note that I have already started with the implementation of this already. Done everything that deals with the submission and all, so it's mainly the review remaining now.
+You should note that I have already started with the implementation of this already. Done everything that deals with the submission and all, so it's mainly the review remaining now. I have also done like an authentication logic for both the reviwers who'll review the proposals and researchers who submitted proposals.
 I'll like something like a button at the top right of the page where research proposals are reviewed which will be called review guidelines as they'll take you to another tab where the guidelines or rules for proposal grading will be shown with examples if possible.
 Also if images are added showing the ui pages build exactly what's in the image making it responsive and all while adding all the neccessary functionalities for the page that may not have been included in the PRD following the consistent design already being used.
+
 Also this is the rules being used to assign reviewers
 Review Clusters
 
@@ -14,7 +15,7 @@ Review Clusters
 (4) Law/Arts/Institute of Education
 (5) Engineering/ Physical Sciences/Environmental Sciences
 
-Let me explain, If a proposal is submitted by a staff or master's student from the Engineering faculty, then the appropriate reviewer should be from either the faculty of physical science or environmental science but not engineering. and vice-versa for any faculty in relation to the other faculties in their respective clusters.
+Let me explain, If a proposal is submitted by a staff or master's student from the Engineering faculty (extract a user's faculty from the proposal submitted since it's part of the form and use), then the appropriate reviewer should be from either the faculty of physical science or environmental science but not engineering. and vice-versa for any faculty in relation to the other faculties in their respective clusters.
 
 ## 1. Introduction
 
@@ -74,6 +75,39 @@ The platform consists of:
 - Field classification and categorization
 - Keyword identification and tagging
 - Initial completeness check
+- Now when a proposal is to be put for review, to promote fairness and anonymosity, certain information like the name of the reviewer or the reviewer faculty or department, basically all information not part of the actual research proposal requirement should not be added in the proposal to be assigned to reviewers, and my staff proposals are easy to assign since it's in like a form format but for master's student, their entire information is in a document file, whether pdf or docx. so an appropriate way should be found to extract and parse it so it can be assigned to reviewers to after removing the personal information from it, the reviewers don't review documents so the info have to be extracted. If it's a staff proposal that info should be used or if it's a master's student proposal it should be used to be able to differentiate between them since they have some lightly different fields. The master's document follows this set of rules next, it has some slightly different fields from the staff proposals.
+
+Concept Note Submission Template (Master's Students Only)
+
+Please complete all fields clearly and accurately. Maximum of 5 pages excluding the budget appendix.
+
+Project Title:
+Provide a clear and descriptive title for your project.
+Lead Researcher Information:
+Full Name
+Matriculation Number
+Programme (e.g., MSc, MA, LLM)
+Department and Faculty
+Email Address
+Phone Number
+Problem Statement and Justification:
+Briefly describe the problem your project addresses and explain why it is important.
+Objectives and Anticipated Outcomes:
+What are you aiming to achieve? What changes, benefits, or results do you expect from your project?
+Research-Informed Approach and Methodology:
+Explain how you will carry out your research, the methods you will use, and how it is informed by academic knowledge.
+Innovation and Impact:
+What is novel about your project?
+How could your project contribute to society, culture, policy, or national development?
+Interdisciplinary Relevance:
+Show how your project draws from or benefits multiple fields of study, if applicable.
+Implementation Plan and Timeline:
+Outline the main activities and stages of the project.
+Provide a realistic timeline covering completion within one academic session.
+Preliminary Budget Estimate (Separate Appendix):
+Break down how you propose to use the seed funding if awarded, with estimated costs.
+Important Submission Details:
+Concept note must not exceed 5 pages (excluding appendix).
 
 #### 3.3.2 AI Scoring Engine (Placeholder Implementation)
 
@@ -95,7 +129,7 @@ The platform consists of:
 
 #### 3.4.1 Reviewer Assignment
 
-- Automated matching of proposals to reviewers based on expertise
+- Automated matching of proposals to reviewers based on the review cluster I talked about earlier
 - Conflict of interest detection and prevention
 - Reviewer workload balancing
 - Manual assignment override for administrators
@@ -109,6 +143,7 @@ The platform consists of:
 - Overall strengths and weaknesses sections
 - Save progress functionality for in-progress reviews
 - Final submission with confirmation
+  -Also it should take a reviewer 5 business days to review a proposal or proposals if more than 1 is sent for review within the same time period, so maybe when It's like 2 days to the end of the 5 days period emails should be sent as reminders and also a mail should be sent if the deadline is met for unreviewed articles so the reviewer can review them.
 
 #### 3.4.3 Scoring System
 
@@ -134,6 +169,7 @@ The platform consists of:
 - Special interface for reconciliation reviewers
 - Additional explanation requirements for significant score differences
 - Resolution tracking and documentation
+- Now the third reviewer should be choosen based on factors like, you are not the one that reviewed the proposal Initially, while still following the review cluster rules and also preferrably a reviewer without or with the less amount of discrepancies in previous proposals reviewed, also the current number of proposals the reviewer has to review, someone with a low workload will be good, just find the most efficient reviewer at any given time.
 
 ### 3.6 Decision Making and Award Management
 
@@ -202,12 +238,6 @@ The platform consists of:
 - Comprehensive help documentation and tooltips
 - Consistent design language across all interfaces
 
-### 4.6 Localization and Internationalization
-
-- Primary language: English
-- Date, time, and currency formatting for Nigerian standards
-- Unicode support for special characters in research content
-
 ## 5. Technical Architecture
 
 ### 5.1 Frontend Architecture
@@ -222,7 +252,7 @@ The platform consists of:
 
 #### 5.1.2 Key Components
 
-- Authentication components (Login, Registration, Password Reset)
+- Authentication components (Login)
 - Dashboard layouts for each user role
 - Multi-step submission wizard
 - Document viewer with annotation capabilities
@@ -236,17 +266,6 @@ The platform consists of:
 - Caching strategy for frequently accessed data
 
 ### 5.2 Backend Architecture
-
-#### 5.2.1 Technology Stack
-
-- Node.js runtime environment
-- Express.js web application framework
-- MongoDB for primary data storage
-- Mongoose ODM for data modeling
-- JSON Web Tokens (JWT) for authentication
-- Multer for file upload handling
-- Nodemailer for email services
-- Winston for logging
 
 #### 5.2.2 API Structure
 

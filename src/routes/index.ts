@@ -5,6 +5,7 @@ import departmentRoutes from '../Proposal_Submission/routes/department.routes';
 import adminRoutes from './admin.routes';
 import authRoutes from './auth.routes';
 import researcherRoutes from '../researchers/routes/researcher.routes';
+import reviewerRoutes from '../Reviewers/routes/reviewer.routes';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.use('/departments', departmentRoutes);
 router.use('/admin', adminRoutes);
 router.use('/auth', authRoutes);
 router.use('/researcher', researcherRoutes);
+router.use('/reviewer', reviewerRoutes);
 
 // Root route
 router.get('/', (req, res) => {
