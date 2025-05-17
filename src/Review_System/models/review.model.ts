@@ -66,7 +66,7 @@ const ReviewSchema: Schema<IReview> = new Schema(
     },
     reviewer: {
       type: Schema.Types.ObjectId,
-      ref: 'Reviewer',
+      ref: 'User',
       default: null, // null for AI reviews
     },
     reviewType: {

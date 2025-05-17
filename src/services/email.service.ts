@@ -209,7 +209,8 @@ class EmailService {
   async sendReviewAssignmentEmail(
     email: string,
     proposalTitle: string,
-    researcherName: string
+    researcherName: string,
+    dueDate: Date
   ): Promise<void> {
     const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
 
@@ -221,7 +222,8 @@ class EmailService {
         html: reviewAssignmentTemplate(
           proposalTitle,
           researcherName,
-          reviewUrl
+          reviewUrl,
+          dueDate
         ),
       });
       logger.info(`Review assignment email sent to reviewer: ${email}`);
