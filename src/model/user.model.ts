@@ -30,6 +30,7 @@ export interface IUser extends Document {
   inviteTokenExpires?: Date;
   proposals: Types.ObjectId[];
   assignedProposals: Types.ObjectId[];
+  completedReviews: Types.ObjectId[];
   isActive: boolean;
   invitationStatus: 'pending' | 'added' | 'accepted' | 'expired';
   credentialsSent: boolean;
@@ -130,6 +131,12 @@ const UserSchema: Schema<IUser> = new Schema(
       {
         type: Schema.Types.ObjectId,
         ref: 'Proposal',
+      },
+    ],
+    completedReviews: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Review',
       },
     ],
     isActive: {

@@ -4,6 +4,7 @@ import User, { UserRole } from '../../model/user.model';
 import Proposal from '../../Proposal_Submission/models/proposal.model';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 import Department from '../../Proposal_Submission/models/department.model';
+import Review, { ReviewStatus } from '../../Review_System/models/review.model';
 import emailService from '../../services/email.service';
 import {
   BadRequestError,
@@ -327,7 +328,15 @@ class ReviewerController {
 
       const reviewer = await User.findById(id)
         .populate('faculty', 'name code')
-        .populate('department', 'name code');
+        .populate('department', 'name code')
+        .populate({
+          path: 'assignedProposals',
+          populate: {
+            path: 'submitter',
+            select: 'name email',
+          },
+        })
+        .populate('completedReviews');
 
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
@@ -450,12 +459,26 @@ class ReviewerController {
         .populate('department', 'name code')
         .select('-docFile -cvFile');
 
+      // Get completed reviews
+      const completedReviews = await Review.find({
+        _id: { $in: reviewer.completedReviews },
+      }).populate('proposal', 'projectTitle submitterType');
+
+      // Get in-progress reviews
+      const inProgressReviews = await Review.find({
+        reviewer: userId,
+        status: ReviewStatus.IN_PROGRESS,
+      }).populate('proposal', 'projectTitle submitterType');
+
+      // Get overdue reviews
+      const overdueReviews = await Review.find({
+        reviewer: userId,
+        status: ReviewStatus.OVERDUE,
+      }).populate('proposal', 'projectTitle submitterType');
+
       // Calculate statistics
       const pendingReviews = assignedProposals.filter(
         (p) => p.reviewStatus === 'pending'
-      ).length;
-      const completedReviews = assignedProposals.filter(
-        (p) => p.reviewStatus === 'reviewed'
       ).length;
       const totalAssigned = assignedProposals.length;
 
@@ -473,10 +496,15 @@ class ReviewerController {
           },
           statistics: {
             pendingReviews,
-            completedReviews,
+            completed: completedReviews.length,
+            inProgress: inProgressReviews.length,
+            overdue: overdueReviews.length,
             totalAssigned,
           },
           assignedProposals,
+          completedReviews,
+          inProgressReviews,
+          overdueReviews,
         },
       });
     }
