@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
-import Reviewer, { ReviewerStatus } from '../model/reviewer.model';
+import User, { UserRole } from '../../model/user.model';
 import Proposal from '../../Proposal_Submission/models/proposal.model';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 import Department from '../../Proposal_Submission/models/department.model';
@@ -52,12 +52,10 @@ class ReviewerController {
 
       logger.info(`Reviewer invitation request received for email: ${email}`);
 
-      const existingReviewer = await Reviewer.findOne({ email });
+      const existingReviewer = await User.findOne({ email });
       if (existingReviewer) {
-        logger.warn(
-          `Attempt to invite already registered reviewer email: ${email}`
-        );
-        throw new BadRequestError('Email already registered as a reviewer');
+        logger.warn(`Attempt to invite already registered email: ${email}`);
+        throw new BadRequestError('Email already registered');
       }
 
       // Generate invite token
@@ -68,11 +66,12 @@ class ReviewerController {
         .digest('hex');
 
       // Store invitation
-      await Reviewer.create({
+      await User.create({
         email,
         inviteToken: hashedToken,
         inviteTokenExpires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        status: ReviewerStatus.PENDING,
+        role: UserRole.REVIEWER,
+        invitationStatus: 'pending',
         assignedProposals: [],
       });
 
@@ -111,7 +110,7 @@ class ReviewerController {
         .update(token)
         .digest('hex');
 
-      const reviewer = await Reviewer.findOne({
+      const reviewer = await User.findOne({
         inviteToken: hashedToken,
         inviteTokenExpires: { $gt: Date.now() },
       });
@@ -145,10 +144,10 @@ class ReviewerController {
       reviewer.academicTitle = academicTitle;
       reviewer.alternativeEmail = alternativeEmail;
       reviewer.password = generatedPassword;
-      reviewer.status = ReviewerStatus.ACTIVE;
+      reviewer.isActive = true;
       reviewer.inviteToken = undefined;
       reviewer.inviteTokenExpires = undefined;
-      reviewer.completedAt = new Date();
+      reviewer.invitationStatus = 'accepted';
 
       await reviewer.save();
       logger.info(`Reviewer profile completed for: ${reviewer.email}`);
@@ -194,7 +193,7 @@ class ReviewerController {
       );
 
       // Check if reviewer already exists
-      const existingReviewer = await Reviewer.findOne({ email });
+      const existingReviewer = await User.findOne({ email });
       if (existingReviewer) {
         logger.warn(
           `Attempt to create profile for already registered email: ${email}`
@@ -217,7 +216,7 @@ class ReviewerController {
       const generatedPassword = generateSecurePassword();
 
       // Create new reviewer profile
-      const newReviewer = await Reviewer.create({
+      const newReviewer = await User.create({
         email,
         name,
         faculty: faculty._id as unknown as Types.ObjectId,
@@ -226,8 +225,9 @@ class ReviewerController {
         academicTitle,
         alternativeEmail,
         password: generatedPassword,
-        status: ReviewerStatus.ACTIVE,
-        completedAt: new Date(),
+        role: UserRole.REVIEWER,
+        isActive: true,
+        invitationStatus: 'added',
         assignedProposals: [],
       });
 
@@ -245,8 +245,8 @@ class ReviewerController {
           id: newReviewer._id,
           email: newReviewer.email,
           name: newReviewer.name,
-          faculty: faculty.name,
-          department: department.name,
+          faculty: newReviewer.faculty,
+          department: newReviewer.department,
           academicTitle: newReviewer.academicTitle,
         },
       });
@@ -291,14 +291,14 @@ class ReviewerController {
         sort: sortObj,
       };
 
-      const reviewers = await Reviewer.find(query)
+      const reviewers = await User.find(query)
         .sort(sortObj)
         .skip((options.page - 1) * options.limit)
         .limit(options.limit)
         .populate('faculty', 'name code')
         .populate('department', 'name code');
 
-      const totalReviewers = await Reviewer.countDocuments(query);
+      const totalReviewers = await User.countDocuments(query);
 
       logger.info(`Admin ${user.userId} retrieved reviewers list`);
 
@@ -325,7 +325,7 @@ class ReviewerController {
 
       const { id } = req.params;
 
-      const reviewer = await Reviewer.findById(id)
+      const reviewer = await User.findById(id)
         .populate('faculty', 'name code')
         .populate('department', 'name code');
 
@@ -355,7 +355,7 @@ class ReviewerController {
 
       const { id } = req.params;
 
-      const reviewer = await Reviewer.findById(id);
+      const reviewer = await User.findById(id);
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
@@ -367,7 +367,7 @@ class ReviewerController {
         );
       }
 
-      await Reviewer.findByIdAndDelete(id);
+      await User.findByIdAndDelete(id);
       logger.info(`Admin ${user.userId} deleted reviewer ${id}`);
 
       res.status(200).json({
@@ -390,12 +390,12 @@ class ReviewerController {
 
       const { id } = req.params;
 
-      const reviewer = await Reviewer.findById(id);
+      const reviewer = await User.findById(id);
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
 
-      if (reviewer.status !== ReviewerStatus.PENDING) {
+      if (reviewer.invitationStatus !== 'pending') {
         throw new BadRequestError(
           'Can only resend invitations for pending reviewers'
         );
@@ -436,7 +436,7 @@ class ReviewerController {
     async (req: Request, res: Response): Promise<void> => {
       const userId = (req as AuthenticatedRequest).user.userId;
 
-      const reviewer = await Reviewer.findById(userId);
+      const reviewer = await User.findById(userId);
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }

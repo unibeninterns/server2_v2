@@ -26,7 +26,10 @@ export interface IUser extends Document {
   programme?: string;
   phoneNumber: string;
   refreshToken?: string;
+  inviteToken?: string;
+  inviteTokenExpires?: Date;
   proposals: Types.ObjectId[];
+  assignedProposals: Types.ObjectId[];
   isActive: boolean;
   invitationStatus: 'pending' | 'added' | 'accepted' | 'expired';
   credentialsSent: boolean;
@@ -111,7 +114,19 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       select: false,
     },
+    inviteToken: {
+      type: String,
+    },
+    inviteTokenExpires: {
+      type: Date,
+    },
     proposals: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Proposal',
+      },
+    ],
+    assignedProposals: [
       {
         type: Schema.Types.ObjectId,
         ref: 'Proposal',

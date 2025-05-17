@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import User from '../../model/user.model';
+import User, { UserRole } from '../../model/user.model';
 import Proposal from '../../Proposal_Submission/models/proposal.model';
 import { BadRequestError, NotFoundError } from '../../utils/customErrors';
 import emailService from '../../services/email.service';
@@ -71,6 +71,7 @@ class ResearcherManagementController {
 
       // Update the researcher record
       researcher.password = generatedPassword;
+      researcher.role = UserRole.RESEARCHER;
       researcher.isActive = true;
       researcher.credentialsSent = true;
       researcher.credentialsSentAt = new Date();
