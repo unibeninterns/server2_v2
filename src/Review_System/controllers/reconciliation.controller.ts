@@ -1,9 +1,10 @@
-// src/Review_System/controllers/reconciliation.controller.ts
+/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import Review, {
   IReview,
   ReviewStatus,
   ReviewType,
+  IScore,
 } from '../models/review.model';
 import Proposal, {
   ProposalStatus,
@@ -15,6 +16,7 @@ import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import mongoose, { Types } from 'mongoose';
+import Faculty from '../../Proposal_Submission/models/faculty.model';
 
 interface IReconciliationResponse {
   success: boolean;
@@ -23,209 +25,311 @@ interface IReconciliationResponse {
 }
 
 class ReconciliationController {
-  // Assign a reconciliation reviewer for a proposal with discrepancy
-  assignReconciliationReviewer = asyncHandler(
+  // Check for discrepancies between reviews and assign reconciliation if needed
+  checkReviewDiscrepancies = asyncHandler(
     async (
       req: Request<{ proposalId: string }>,
       res: Response<IReconciliationResponse>
     ): Promise<void> => {
       const { proposalId } = req.params;
 
-      // Check if proposal exists and needs reconciliation
-      const proposal = await Proposal.findById(proposalId);
-      if (!proposal) {
-        throw new NotFoundError('Proposal not found');
-      }
-
-      // Get existing reviews to check for discrepancy
+      // Find all completed reviews for this proposal
       const reviews = await Review.find({
         proposal: proposalId,
-        reviewType: { $ne: ReviewType.RECONCILIATION },
-      }).populate('reviewer', 'faculty department');
+        status: ReviewStatus.COMPLETED,
+      });
 
+      // Need at least 2 reviews (typically 2 human reviews + 1 AI) to check for discrepancies
       if (reviews.length < 2) {
-        throw new BadRequestError(
-          'Proposal does not have enough reviews for reconciliation'
-        );
+        res.status(400).json({
+          success: false,
+          message: 'Not enough completed reviews to check for discrepancies',
+        });
+        return;
       }
 
-      // Calculate average score and check if there's a discrepancy
+      // Calculate average score and check for significant discrepancies
       const totalScores = reviews.map((r) => r.totalScore);
       const avgScore =
         totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length;
+
+      // Check if any score differs from average by more than 20%
       const discrepancyThreshold = avgScore * 0.2;
       const hasDiscrepancy = totalScores.some(
         (score) => Math.abs(score - avgScore) > discrepancyThreshold
       );
 
-      if (!hasDiscrepancy) {
-        throw new BadRequestError(
-          'No significant discrepancy detected for this proposal'
-        );
-      }
+      // If there's a significant discrepancy, assign a reconciliation reviewer
+      if (hasDiscrepancy) {
+        // Find a reviewer who hasn't reviewed this proposal already
+        const existingReviewerIds = reviews
+          .filter((r) => r.reviewType === ReviewType.HUMAN)
+          .map((r) => r.reviewer?.toString());
 
-      // Check if a reconciliation reviewer is already assigned
-      const existingReconciliation = await Review.findOne({
-        proposal: proposalId,
-        reviewType: ReviewType.RECONCILIATION,
-      });
+        // Get submitter's faculty information to find reviewers from the same cluster
+        const proposal = await Proposal.findById(proposalId).populate({
+          path: 'submitter',
+          select: 'faculty',
+          populate: { path: 'faculty', select: 'title code' },
+        });
 
-      if (existingReconciliation) {
-        throw new BadRequestError(
-          'A reconciliation reviewer has already been assigned'
-        );
-      }
+        if (!proposal) {
+          throw new NotFoundError('Proposal not found');
+        }
 
-      // Extract faculty information from original reviewers
-      const reviewerFaculties: string[] = reviews
-        .filter((r) => r.reviewer && r.reviewer.faculty)
-        .map((r) => r.reviewer.faculty.toString());
+        const submitterFaculty = (proposal.submitter as any).faculty;
+        if (!submitterFaculty) {
+          logger.error(
+            `Faculty information missing for proposal ${proposalId}`
+          );
+          res.status(400).json({
+            success: false,
+            message:
+              'Cannot assign reconciliation: Faculty information is missing',
+          });
+          return;
+        }
 
-      // Find the appropriate reviewer from other faculties in the same cluster
-      // First, determine which cluster this proposal belongs to
-      const submitterFaculty = await User.findById(proposal.submitter)
-        .select('faculty')
-        .populate('faculty', 'title');
+        const submitterFacultyTitle =
+          typeof submitterFaculty === 'string'
+            ? submitterFaculty
+            : submitterFaculty.title;
 
-      if (!submitterFaculty || !submitterFaculty.faculty) {
-        throw new BadRequestError('Cannot determine submitter faculty');
-      }
+        // Use the same cluster logic as in assignReviewers
+        const clusterMap = {
+          // Cluster 1
+          'Faculty of Agriculture': [
+            'Faculty of Life Sciences',
+            'Faculty of Veterinary Medicine',
+          ],
+          'Faculty of Life Sciences': [
+            'Faculty of Agriculture',
+            'Faculty of Veterinary Medicine',
+          ],
+          'Faculty of Veterinary Medicine': [
+            'Faculty of Agriculture',
+            'Faculty of Life Sciences',
+          ],
 
-      const facultyTitle = (
-        submitterFaculty.faculty as any
-      ).title.toLowerCase();
+          // Cluster 2
+          'Faculty of Pharmacy': [
+            'Faculty of Dentistry',
+            'Faculty of Medicine',
+            'Faculty of Basic Medical Sciences',
+          ],
+          'Faculty of Dentistry': [
+            'Faculty of Pharmacy',
+            'Faculty of Medicine',
+            'Faculty of Basic Medical Sciences',
+          ],
+          'Faculty of Medicine': [
+            'Faculty of Pharmacy',
+            'Faculty of Dentistry',
+            'Faculty of Basic Medical Sciences',
+          ],
+          'Faculty of Basic Medical Sciences': [
+            'Faculty of Pharmacy',
+            'Faculty of Dentistry',
+            'Faculty of Medicine',
+          ],
 
-      // Determine the cluster based on faculty
-      let clusterFaculties: string[] = [];
+          // Cluster 3
+          'Faculty of Management Sciences': [
+            'Faculty of Education',
+            'Faculty of Social Sciences',
+            'Faculty of Vocational Education',
+          ],
+          'Faculty of Education': [
+            'Faculty of Management Sciences',
+            'Faculty of Social Sciences',
+            'Faculty of Vocational Education',
+          ],
+          'Faculty of Social Sciences': [
+            'Faculty of Management Sciences',
+            'Faculty of Education',
+            'Faculty of Vocational Education',
+          ],
+          'Faculty of Vocational Education': [
+            'Faculty of Management Sciences',
+            'Faculty of Education',
+            'Faculty of Social Sciences',
+          ],
 
-      if (
-        /life sciences|agric|agriculture|vet|veterinary/i.test(facultyTitle)
-      ) {
-        clusterFaculties = [
-          'life sciences',
-          'agriculture',
-          'veterinary medicine',
-        ];
-      } else if (
-        /pharmacy|dentistry|medicine|medical|basic medical/i.test(facultyTitle)
-      ) {
-        clusterFaculties = [
-          'pharmacy',
-          'dentistry',
-          'medicine',
-          'basic medical sciences',
-        ];
-      } else if (/management|education|social|vocational/i.test(facultyTitle)) {
-        clusterFaculties = [
-          'management sciences',
-          'education',
-          'social sciences',
-          'vocational education',
-        ];
-      } else if (/law|arts|institute of education/i.test(facultyTitle)) {
-        clusterFaculties = ['law', 'arts', 'institute of education'];
-      } else if (/engineering|physical|environmental/i.test(facultyTitle)) {
-        clusterFaculties = [
-          'engineering',
-          'physical sciences',
-          'environmental sciences',
-        ];
-      } else {
-        throw new BadRequestError('Cannot determine faculty cluster');
-      }
+          // Cluster 4
+          'Faculty of Law': ['Faculty of Arts', 'Institute of Education'],
+          'Faculty of Arts': ['Faculty of Law', 'Institute of Education'],
+          'Institute of Education': ['Faculty of Law', 'Faculty of Arts'],
 
-      // Find all faculties in the same cluster
-      const facultiesInCluster = await mongoose.model('Faculty').find({
-        title: { $regex: new RegExp(clusterFaculties.join('|'), 'i') },
-      });
+          // Cluster 5
+          'Faculty of Engineering': [
+            'Faculty of Physical Sciences',
+            'Faculty of Environmental Sciences',
+          ],
+          'Faculty of Physical Sciences': [
+            'Faculty of Engineering',
+            'Faculty of Environmental Sciences',
+          ],
+          'Faculty of Environmental Sciences': [
+            'Faculty of Engineering',
+            'Faculty of Physical Sciences',
+          ],
+        };
 
-      const facultyIds = facultiesInCluster.map((f) => f._id.toString());
+        const eligibleFaculties =
+          clusterMap[submitterFacultyTitle as keyof typeof clusterMap] || [];
 
-      // Find reviewers from the same cluster but different faculty
-      // who haven't previously reviewed this proposal and have fewer discrepancies
-      const eligibleReviewers = await User.find({
-        role: UserRole.REVIEWER,
-        isActive: true,
-        faculty: {
-          $in: facultyIds,
-          $nin: reviewerFaculties, // Not from the same faculty as original reviewers
-        },
-        _id: { $nin: reviews.map((r) => r.reviewer?._id) }, // Exclude previous reviewers
-      })
-        .populate('completedReviews')
-        .sort({ assignedProposals: 1 }); // Sort by workload (fewer is better)
+        if (eligibleFaculties.length === 0) {
+          logger.error(
+            `No eligible faculties found for ${submitterFacultyTitle}`
+          );
+          res.status(400).json({
+            success: false,
+            message:
+              "Cannot assign reconciliation: No eligible faculties found for the proposal's cluster",
+          });
+          return;
+        }
 
-      if (!eligibleReviewers.length) {
-        throw new BadRequestError('No eligible reconciliation reviewers found');
-      }
+        // Find reviewers from eligible faculties with the least current assignments
+        const facultyIds = await Faculty.find({
+          title: { $in: eligibleFaculties },
+        }).select('_id'); // Get ObjectIds instead of codes
 
-      // Prioritize reviewers with fewer discrepancies
-      // This would require more complex logic to track discrepancies
-      // For now, just pick the one with the least workload
-      const selectedReviewer = eligibleReviewers[0];
+        const facultyIdList = facultyIds.map((f) => f._id);
 
-      // Create a new reconciliation review assignment
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 5); // 5 business days
-
-      const reconciliationReview = new Review({
-        proposal: proposalId,
-        reviewer: selectedReviewer._id,
-        reviewType: ReviewType.RECONCILIATION,
-        status: ReviewStatus.IN_PROGRESS,
-        dueDate,
-        scores: {
-          relevanceToNationalPriorities: 0,
-          originalityAndInnovation: 0,
-          clarityOfResearchProblem: 0,
-          methodology: 0,
-          literatureReview: 0,
-          teamComposition: 0,
-          feasibilityAndTimeline: 0,
-          budgetJustification: 0,
-          expectedOutcomes: 0,
-          sustainabilityAndScalability: 0,
-        },
-      });
-
-      await reconciliationReview.save();
-
-      // Update reviewer's assigned proposals
-      await User.findByIdAndUpdate(selectedReviewer._id, {
-        $push: { assignedProposals: proposalId },
-      });
-
-      // Update proposal status
-      proposal.status = ProposalStatus.UNDER_REVIEW;
-      await proposal.save();
-
-      // Send notification to the reconciliation reviewer
-      try {
-        await emailService.sendReconciliationReviewerEmail(
-          selectedReviewer.email,
+        // Find eligible reconciliation reviewer
+        const eligibleReviewer = await User.aggregate([
           {
-            reviewerName: selectedReviewer.name,
-            proposalTitle: proposal.projectTitle || 'Research Proposal',
-            dueDate: dueDate.toLocaleDateString(),
-            loginLink: `${process.env.FRONTEND_URL}/reviewer/login`,
-          }
-        );
-      } catch (error) {
-        logger.error('Failed to send reconciliation reviewer email:', error);
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Reconciliation reviewer assigned successfully',
-        data: {
-          reconciliationReview,
-          reviewer: {
-            id: selectedReviewer._id,
-            name: selectedReviewer.name,
-            email: selectedReviewer.email,
+            $match: {
+              faculty: { $in: facultyIdList },
+              role: UserRole.REVIEWER, // Add role filter
+              isActive: true,
+              invitationStatus: { $in: ['accepted', 'added'] },
+              _id: {
+                $nin: existingReviewerIds.map(
+                  (id) => new mongoose.Types.ObjectId(id)
+                ),
+              },
+            },
           },
-        },
-      });
+          {
+            $lookup: {
+              from: 'Reviews',
+              localField: '_id',
+              foreignField: 'reviewer',
+              as: 'activeReviews',
+            },
+          },
+          {
+            $addFields: {
+              pendingReviewsCount: {
+                $size: {
+                  $filter: {
+                    input: '$activeReviews',
+                    as: 'review',
+                    cond: { $ne: ['$$review.status', 'completed'] },
+                  },
+                },
+              },
+              discrepancyCount: {
+                $size: {
+                  $filter: {
+                    input: '$activeReviews',
+                    as: 'review',
+                    cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $sort: {
+              discrepancyCount: 1,
+              pendingReviewsCount: 1,
+            },
+          },
+          {
+            $limit: 1,
+          },
+        ]);
+
+        if (eligibleReviewer.length === 0) {
+          logger.error(
+            `No eligible reconciliation reviewer found for proposal ${proposalId}`
+          );
+          res.status(400).json({
+            success: false,
+            message:
+              'Cannot assign reconciliation: No eligible reviewers available',
+          });
+          return;
+        }
+
+        // Create reconciliation review assignment
+        const dueDate = this.calculateDueDate(5);
+        const reconciliationReview = new Review({
+          proposal: proposalId,
+          reviewer: eligibleReviewer[0]._id,
+          reviewType: ReviewType.RECONCILIATION,
+          status: ReviewStatus.IN_PROGRESS,
+          dueDate,
+        });
+
+        await reconciliationReview.save();
+
+        // Notify reconciliation reviewer
+        try {
+          await emailService.sendReconciliationAssignmentEmail(
+            eligibleReviewer[0].email,
+            eligibleReviewer[0].name,
+            proposal.projectTitle || 'Research Proposal',
+            dueDate,
+            reviews.length,
+            Math.round(avgScore * 10) / 10, // Round to 1 decimal place
+            totalScores
+          );
+        } catch (error) {
+          logger.error(
+            'Failed to send reconciliation assignment email:',
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+        }
+
+        logger.info(
+          `Assigned reconciliation review for proposal ${proposalId} to reviewer ${eligibleReviewer[0]._id}`
+        );
+
+        res.status(200).json({
+          success: true,
+          message:
+            'Reconciliation review assigned successfully due to scoring discrepancies',
+          data: {
+            scores: totalScores,
+            averageScore: avgScore,
+            discrepancyThreshold,
+            reconciliationReviewer: {
+              id: eligibleReviewer[0]._id,
+              name: eligibleReviewer[0].name,
+            },
+            dueDate,
+          },
+        });
+      } else {
+        // No significant discrepancies
+        logger.info(
+          `No significant discrepancies found for proposal ${proposalId}`
+        );
+
+        res.status(200).json({
+          success: true,
+          message: 'No significant discrepancies found between reviews',
+          data: {
+            scores: totalScores,
+            averageScore: avgScore,
+            discrepancyThreshold,
+          },
+        });
+      }
     }
   );
 
@@ -310,7 +414,7 @@ class ReconciliationController {
     }
   );
 
-  // Get review discrepancy details
+  // Get review discrepancy details for a specific proposal
   getDiscrepancyDetails = asyncHandler(
     async (
       req: Request<{ proposalId: string }>,
@@ -399,6 +503,22 @@ class ReconciliationController {
       });
     }
   );
+
+  // Helper function to calculate due date (X business days from now)
+  private calculateDueDate(businessDays: number): Date {
+    const date = new Date();
+    let daysAdded = 0;
+
+    while (daysAdded < businessDays) {
+      date.setDate(date.getDate() + 1);
+      // Skip weekends
+      if (date.getDay() !== 0 && date.getDay() !== 6) {
+        daysAdded++;
+      }
+    }
+
+    return date;
+  }
 }
 
 export default new ReconciliationController();
