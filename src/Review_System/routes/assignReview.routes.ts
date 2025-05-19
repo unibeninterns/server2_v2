@@ -9,7 +9,9 @@ const router = Router();
 // Define validation schema for proposalId parameter
 const proposalIdSchema = z.object({
   params: z.object({
-    proposalId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid proposal ID format'),
+    proposalId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, 'Invalid proposal ID format'),
   }),
 });
 
@@ -19,14 +21,6 @@ router.post(
   authenticateAdminToken,
   validateRequest(proposalIdSchema),
   assignReviewController.assignReviewers
-);
-
-// Route to check for review discrepancies
-router.get(
-  '/check-discrepancies/:proposalId',
-  authenticateAdminToken,
-  validateRequest(proposalIdSchema),
-  assignReviewController.checkReviewDiscrepancies
 );
 
 // Route to check for overdue reviews (no params needed)

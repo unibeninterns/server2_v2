@@ -23,11 +23,12 @@ const reviewIdSchema = z.object({
 });
 
 // Admin routes for managing reconciliation
-router.post(
-  '/assign/:proposalId',
+// Route to check for review discrepancies
+router.get(
+  '/check-discrepancies/:proposalId',
   authenticateAdminToken,
   validateRequest(proposalIdSchema),
-  reconciliationController.assignReconciliationReviewer
+  reconciliationController.checkReviewDiscrepancies
 );
 
 router.post(

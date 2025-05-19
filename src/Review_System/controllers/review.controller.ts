@@ -1,6 +1,9 @@
-// src/Review_System/controllers/review.controller.ts
 import { Request, Response } from 'express';
-import Review, { IScore, ReviewStatus } from '../models/review.model';
+import Review, {
+  IScore,
+  ReviewStatus,
+  ReviewType,
+} from '../models/review.model';
 import Proposal, {
   ProposalStatus,
 } from '../../Proposal_Submission/models/proposal.model';
@@ -158,53 +161,92 @@ class ReviewController {
 
       await review.save();
 
-      // Update proposal's review status if all reviews are complete
+      // Get all reviews for this proposal (excluding reconciliation reviews for initial check)
       const allReviews = await Review.find({
         proposal: review.proposal,
-        reviewType: { $ne: 'reconciliation' }, // Exclude reconciliation reviews for initial check
+        reviewType: { $ne: ReviewType.RECONCILIATION },
       });
 
       const allCompleted = allReviews.every(
         (r) => r.status === ReviewStatus.COMPLETED
       );
 
+      // Generate discrepancy analysis regardless of completion status
+      // This will be used both for logging and determining if reconciliation is needed
+      const discrepancyDetails = await this.generateDiscrepancyAnalysis(
+        review.proposal.toString()
+      );
+
       if (allCompleted) {
-        // Check for discrepancies
-        const totalScores = allReviews.map((r) => r.totalScore);
-        const avgScore =
-          totalScores.reduce((sum, score) => sum + score, 0) /
-          totalScores.length;
-        const discrepancyThreshold = avgScore * 0.2;
-        const hasDiscrepancy = totalScores.some(
-          (score) => Math.abs(score - avgScore) > discrepancyThreshold
-        );
+        // Check if there's an ongoing reconciliation review
+        const existingReconciliation = await Review.findOne({
+          proposal: review.proposal,
+          reviewType: ReviewType.RECONCILIATION,
+        });
 
-        // If there's no discrepancy, mark proposal as reviewed
-        if (!hasDiscrepancy) {
-          const proposal = await Proposal.findById(review.proposal);
-          if (proposal) {
-            proposal.reviewStatus = 'reviewed';
-            await proposal.save();
-
-            // Create preliminary award record
-            const award = new Award({
-              proposal: proposal._id,
-              submitter: proposal.submitter,
-              finalScore: avgScore,
-              status: AwardStatus.PENDING,
-              fundingAmount: proposal.estimatedBudget || 0, // Start with requested amount
-              feedbackComments:
-                'Your proposal has been reviewed. Final decision pending.',
-            });
-
-            await award.save();
+        if (existingReconciliation) {
+          // If this is a reconciliation review, process it
+          if (review.reviewType === ReviewType.RECONCILIATION) {
+            // Import and use reconciliation controller to process reconciliation
+            const reconciliationController =
+              require('../controllers/reconciliation.controller').default;
+            await reconciliationController.processReconciliationReview(
+              { params: { reviewId: id } },
+              res
+            );
+            return; // End execution since reconciliation controller has already sent response
           }
         } else {
-          // If there's a discrepancy, initiate reconciliation process
-          logger.info(
-            `Discrepancy detected for proposal ${review.proposal}. Initiating reconciliation.`
-          );
-          // This will be handled by a separate process
+          // No reconciliation exists, check if one is needed by using the reconciliation controller
+          try {
+            const reconciliationController =
+              require('../controllers/reconciliation.controller').default;
+            await reconciliationController.checkReviewDiscrepancies(
+              { params: { proposalId: review.proposal.toString() } },
+              {
+                status: () => ({ json: () => {} }),
+                json: () => {},
+              } as Response
+            );
+
+            // Check again if reconciliation was created
+            const reconciliationCreated = await Review.findOne({
+              proposal: review.proposal,
+              reviewType: ReviewType.RECONCILIATION,
+            });
+
+            // If no reconciliation was needed or created, finalize the proposal
+            if (!reconciliationCreated) {
+              const proposal = await Proposal.findById(review.proposal);
+              if (proposal) {
+                proposal.reviewStatus = 'reviewed';
+                await proposal.save();
+
+                // Create preliminary award record
+                const award = new Award({
+                  proposal: proposal._id,
+                  submitter: proposal.submitter,
+                  finalScore: discrepancyDetails.overallDiscrepancy.avg,
+                  status: AwardStatus.PENDING,
+                  fundingAmount: proposal.estimatedBudget || 0,
+                  feedbackComments:
+                    'Your proposal has been reviewed. Final decision pending.',
+                });
+
+                await award.save();
+              }
+            } else {
+              logger.info(
+                `Reconciliation process initiated for proposal ${review.proposal}`
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `Error checking for discrepancies: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          }
         }
       }
 
@@ -212,10 +254,46 @@ class ReviewController {
       res.status(200).json({
         success: true,
         message: 'Review submitted successfully',
-        data: { review },
+        data: {
+          review,
+          discrepancyAnalysis: discrepancyDetails,
+        },
       });
     }
   );
+
+  // Helper method to generate discrepancy analysis for a proposal
+  generateDiscrepancyAnalysis = async (proposalId: string) => {
+    try {
+      const reconciliationController =
+        require('../controllers/reconciliation.controller').default;
+
+      // Create a mock response object to capture the result
+      const mockRes = {
+        status: () => mockRes,
+        json: (data: any) => {
+          return data;
+        },
+      };
+
+      // Execute the discrepancy analysis
+      const result = await reconciliationController.getDiscrepancyDetails(
+        { params: { proposalId } },
+        mockRes as any
+      );
+
+      return (
+        result?.data || { criteriaDiscrepancies: [], overallDiscrepancy: {} }
+      );
+    } catch (error) {
+      logger.error(
+        `Error generating discrepancy analysis: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return { criteriaDiscrepancies: [], overallDiscrepancy: {} };
+    }
+  };
 
   getProposalForReview = asyncHandler(
     async (
@@ -338,3 +416,5 @@ class ReviewController {
     }
   );
 }
+
+export default new ReviewController();
