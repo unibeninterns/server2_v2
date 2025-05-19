@@ -1,21 +1,14 @@
 /* eslint-disable max-lines */
 import { Request, Response } from 'express';
-import Review, {
-  IReview,
-  ReviewStatus,
-  ReviewType,
-  IScore,
-} from '../models/review.model';
-import Proposal, {
-  ProposalStatus,
-} from '../../Proposal_Submission/models/proposal.model';
+import Review, { ReviewStatus, ReviewType } from '../models/review.model';
+import Proposal from '../../Proposal_Submission/models/proposal.model';
 import User, { UserRole } from '../../model/user.model';
 import Award, { AwardStatus } from '../models/award.model';
 import { NotFoundError, BadRequestError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
-import mongoose, { Types } from 'mongoose';
+import mongoose from 'mongoose';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 
 interface IReconciliationResponse {
