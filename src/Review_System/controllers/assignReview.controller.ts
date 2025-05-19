@@ -8,13 +8,14 @@ import Review, {
   ReviewStatus,
   ReviewType,
   IReview,
+  IScore,
 } from '../models/review.model';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import { NotFoundError } from '../../utils/customErrors';
-import mongoose, { Types, Document } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 
 interface IAssignReviewResponse {
   success: boolean;
@@ -154,7 +155,9 @@ class AssignReviewController {
         ],
       };
 
-      const submitterFacultyTitle =
+      type FacultyTitle = keyof typeof clusterMap;
+
+      const submitterFacultyTitle: FacultyTitle =
         typeof submitterFaculty === 'string'
           ? submitterFaculty
           : submitterFaculty.title;
@@ -174,11 +177,6 @@ class AssignReviewController {
       }
 
       // Find reviewers from eligible faculties with the least current assignments
-      const facultyCodes = await Faculty.find({
-        title: { $in: eligibleFaculties },
-      }).select('code');
-
-      const facultyCodeList = facultyCodes.map((f) => f.code);
 
       const facultyIds = await Faculty.find({
         title: { $in: eligibleFaculties },
@@ -287,8 +285,8 @@ class AssignReviewController {
         for (const reviewer of eligibleReviewers) {
           await emailService.sendReviewAssignmentEmail(
             reviewer.email,
-            reviewer.name,
             proposal.projectTitle || 'Research Proposal',
+            reviewer.name,
             dueDate
           );
         }
@@ -304,8 +302,12 @@ class AssignReviewController {
       const aiReviewId = reviews.find(
         (r) => r.reviewType === ReviewType.AI
       )?._id;
-      if (aiReviewId) {
+
+      if (aiReviewId && proposal && proposal._id) {
         await this.generateAIReview(aiReviewId.toString());
+        logger.info(`Generated AI review for proposal ${proposal._id}`);
+      } else {
+        logger.warn('Could not generate AI review due to missing information');
       }
 
       logger.info(
@@ -342,7 +344,7 @@ class AssignReviewController {
     const aiScores = this.generateAIScore();
 
     // Update review with AI scores
-    review.scores = aiScores.scores;
+    review.scores = aiScores.scores as IScore;
     review.comments = aiScores.explanations;
     review.status = ReviewStatus.COMPLETED;
     review.completedAt = new Date();
@@ -353,8 +355,14 @@ class AssignReviewController {
   };
 
   // Generate placeholder AI scores
-  private generateAIScore() {
-    const baseScores = {
+  private generateAIScore(): {
+    scores: IScore;
+    explanations: Record<string, string>;
+    totalScore: number;
+  } {
+    type ScoreCriterion = keyof typeof baseScores;
+
+    const baseScores: IScore = {
       relevanceToNationalPriorities: 7,
       originalityAndInnovation: 12,
       clarityOfResearchProblem: 8,
@@ -368,10 +376,23 @@ class AssignReviewController {
     };
 
     // Add random variation (±20%)
-    const scores: any = {};
-    Object.keys(baseScores).forEach((criterion) => {
+    const defaultScores: IScore = {
+      relevanceToNationalPriorities: 0,
+      originalityAndInnovation: 0,
+      clarityOfResearchProblem: 0,
+      methodology: 0,
+      literatureReview: 0,
+      teamComposition: 0,
+      feasibilityAndTimeline: 0,
+      budgetJustification: 0,
+      expectedOutcomes: 0,
+      sustainabilityAndScalability: 0,
+    };
+
+    const scores: IScore = Object.assign({}, defaultScores);
+    (Object.keys(baseScores) as ScoreCriterion[]).forEach((criterion) => {
       const variation = Math.random() * 0.4 - 0.2; // -20% to +20%
-      const baseScore = baseScores[criterion as keyof typeof baseScores];
+      const baseScore = baseScores[criterion];
       const adjustedScore = Math.min(
         Math.max(Math.round(baseScore * (1 + variation)), 1),
         baseScore // Never exceed max for criterion

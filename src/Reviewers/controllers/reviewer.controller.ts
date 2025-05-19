@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import User, { UserRole } from '../../model/user.model';

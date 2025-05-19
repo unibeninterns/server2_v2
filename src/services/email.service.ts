@@ -2,14 +2,19 @@ import nodemailer, { Transporter } from 'nodemailer';
 import logger from '../utils/logger';
 import validateEnv from '../utils/validateEnv';
 import { SubmitterType } from '../Proposal_Submission/models/proposal.model';
-import { proposalNotificationTemplate } from '../templates/emails/proposalNotification.template';
-import { submissionConfirmationTemplate } from '../templates/emails/submissionConfirmation.template';
-import { statusUpdateTemplate } from '../templates/emails/statusUpdate.template';
-import { reviewerInvitationTemplate } from '../templates/emails/reviewerInvitation.template';
-import { reviewerCredentialsTemplate } from '../templates/emails/reviewerCredentials.template';
-import { reviewAssignmentTemplate } from '../templates/emails/reviewAssignment.template';
-import { invitationTemplate } from '../templates/emails/invitation.template';
-import { credentialsTemplate } from '../templates/emails/credentials.template';
+import {
+  reviewReminderTemplate,
+  overdueReviewTemplate,
+  reconciliationAssignmentTemplate,
+  reviewAssignmentTemplate,
+  proposalNotificationTemplate,
+  submissionConfirmationTemplate,
+  statusUpdateTemplate,
+  reviewerInvitationTemplate,
+  reviewerCredentialsTemplate,
+  invitationTemplate,
+  credentialsTemplate,
+} from '../templates/emails';
 
 validateEnv();
 
@@ -268,6 +273,93 @@ class EmailService {
     } catch (error) {
       logger.error(
         'Failed to send credentials email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendReviewReminderEmail(
+    email: string,
+    reviewerName: string,
+    proposalTitle: string,
+    dueDate: Date
+  ): Promise<void> {
+    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Reminder: Research Proposal Review Due Soon',
+        html: reviewReminderTemplate(
+          reviewerName,
+          proposalTitle,
+          reviewUrl,
+          dueDate
+        ),
+      });
+      logger.info(`Review reminder email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send review reminder email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendOverdueReviewNotification(
+    email: string,
+    reviewerName: string,
+    proposalTitle: string
+  ): Promise<void> {
+    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'OVERDUE: Research Proposal Review',
+        html: overdueReviewTemplate(reviewerName, proposalTitle, reviewUrl),
+      });
+      logger.info(`Overdue review notification sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send overdue review notification:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendReconciliationAssignmentEmail(
+    email: string,
+    reviewerName: string,
+    proposalTitle: string,
+    dueDate: Date,
+    reviewCount: number,
+    averageScore: number,
+    scores: number[]
+  ): Promise<void> {
+    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: email,
+        subject: 'Reconciliation Review Assignment',
+        html: reconciliationAssignmentTemplate(
+          reviewerName,
+          proposalTitle,
+          reviewUrl,
+          dueDate,
+          reviewCount,
+          averageScore,
+          scores
+        ),
+      });
+      logger.info(`Reconciliation assignment email sent to: ${email}`);
+    } catch (error) {
+      logger.error(
+        'Failed to send reconciliation assignment email:',
         error instanceof Error ? error.message : 'Unknown error'
       );
     }
