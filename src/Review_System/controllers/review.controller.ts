@@ -4,18 +4,15 @@ import Review, {
   ReviewStatus,
   ReviewType,
 } from '../models/review.model';
-import Proposal, {
-  ProposalStatus,
-} from '../../Proposal_Submission/models/proposal.model';
+import Proposal from '../../Proposal_Submission/models/proposal.model';
 import Award, { AwardStatus } from '../models/award.model';
 import { NotFoundError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
-import emailService from '../../services/email.service';
-import mongoose from 'mongoose';
 
 interface IReviewResponse {
   success: boolean;
+  count?: number;
   message?: string;
   data?: any;
 }
@@ -39,11 +36,48 @@ interface ISubmitReviewRequest {
   };
 }
 
+interface ResearcherAuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    role: string;
+  };
+}
+
+// Add this interface near your other interfaces
+interface GetReviewRequest extends ResearcherAuthenticatedRequest {
+  params: {
+    id: string;
+  };
+}
+
+interface GetProposalReviewRequest extends ResearcherAuthenticatedRequest {
+  params: {
+    proposalId: string;
+  };
+}
+
+// Add this interface near your other interfaces
+interface SubmitReviewRequest extends ResearcherAuthenticatedRequest {
+  body: ISubmitReviewRequest;
+  params: {
+    id: string;
+  };
+}
+
+// Add this interface near your other interfaces
+interface SaveReviewProgressRequest extends ResearcherAuthenticatedRequest {
+  body: Partial<ISubmitReviewRequest>;
+  params: {
+    id: string;
+  };
+}
+
 class ReviewController {
   // Get reviews assigned to a specific reviewer
   getReviewerAssignments = asyncHandler(
     async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
-      const reviewerId = req.user.id; // Assuming auth middleware sets this
+      const user = (req as ResearcherAuthenticatedRequest).user;
+      const reviewerId = user.id; // Assuming auth middleware sets this
 
       const reviews = await Review.find({
         reviewer: reviewerId,
@@ -74,7 +108,7 @@ class ReviewController {
   // Get a specific review by ID
   getReviewById = asyncHandler(
     async (
-      req: Request<{ id: string }>,
+      req: GetReviewRequest,
       res: Response<IReviewResponse>
     ): Promise<void> => {
       const { id } = req.params;
@@ -111,7 +145,7 @@ class ReviewController {
   // Get all reviews for a specific proposal (admin only)
   getProposalReviews = asyncHandler(
     async (
-      req: Request<{ proposalId: string }>,
+      req: GetProposalReviewRequest,
       res: Response<IReviewResponse>
     ): Promise<void> => {
       const { proposalId } = req.params;
@@ -133,7 +167,7 @@ class ReviewController {
   // Submit a review
   submitReview = asyncHandler(
     async (
-      req: Request<{ id: string }, {}, ISubmitReviewRequest>,
+      req: SubmitReviewRequest,
       res: Response<IReviewResponse>
     ): Promise<void> => {
       const { id } = req.params;
@@ -206,7 +240,7 @@ class ReviewController {
               {
                 status: () => ({ json: () => {} }),
                 json: () => {},
-              } as Response
+              } as unknown as Response
             );
 
             // Check again if reconciliation was created
@@ -297,7 +331,7 @@ class ReviewController {
 
   getProposalForReview = asyncHandler(
     async (
-      req: Request<{ proposalId: string }>,
+      req: GetProposalReviewRequest,
       res: Response<IReviewResponse>
     ): Promise<void> => {
       const { proposalId } = req.params;
@@ -336,7 +370,8 @@ class ReviewController {
   // Dashboard statistics for reviewers
   getReviewerStatistics = asyncHandler(
     async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
-      const reviewerId = req.user.id;
+      const user = (req as ResearcherAuthenticatedRequest).user;
+      const reviewerId = user.id;
 
       const [totalAssigned, completed, pending, overdue] = await Promise.all([
         Review.countDocuments({ reviewer: reviewerId }),
@@ -380,7 +415,7 @@ class ReviewController {
   // Update review before final submission (save progress)
   saveReviewProgress = asyncHandler(
     async (
-      req: Request<{ id: string }, {}, Partial<ISubmitReviewRequest>>,
+      req: SaveReviewProgressRequest,
       res: Response<IReviewResponse>
     ): Promise<void> => {
       const { id } = req.params;
@@ -399,7 +434,7 @@ class ReviewController {
 
       // Update only provided fields
       if (scores) {
-        review.scores = { ...review.scores.toObject(), ...scores };
+        review.scores = { ...review.scores, ...scores };
       }
 
       if (comments) {

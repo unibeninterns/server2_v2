@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import User, { UserRole, IUser } from '../../model/user.model';
 import Proposal, {
@@ -24,7 +23,7 @@ interface IAssignReviewResponse {
 }
 
 // Define interface for populated review
-interface PopulatedReview extends IReview {
+interface PopulatedReview extends Omit<IReview, 'proposal' | 'reviewer'> {
   reviewer?: {
     email: string;
     name: string;
@@ -37,7 +36,7 @@ interface PopulatedReview extends IReview {
   dueDate: Date;
   _id: Types.ObjectId;
   status: ReviewStatus;
-  save(): Promise<PopulatedReview>;
+  save(): Promise<IReview>;
 }
 
 class AssignReviewController {
@@ -64,7 +63,8 @@ class AssignReviewController {
       }
 
       // Get submitter's faculty information
-      const submitterFaculty = proposal.submitter.faculty;
+      const submitter = proposal.submitter as any;
+      const submitterFaculty = submitter.faculty;
       if (!submitterFaculty) {
         logger.error(`Faculty information missing for proposal ${proposalId}`);
         res.status(400).json({
@@ -160,7 +160,7 @@ class AssignReviewController {
       const submitterFacultyTitle: FacultyTitle =
         typeof submitterFaculty === 'string'
           ? submitterFaculty
-          : submitterFaculty.title;
+          : (submitterFaculty as any).title;
 
       const eligibleFaculties = clusterMap[submitterFacultyTitle] || [];
 

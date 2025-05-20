@@ -38,11 +38,12 @@ class AIScoringController {
       });
 
       if (existingAIReview) {
-        return res.status(200).json({
+        res.status(200).json({
           success: true,
           message: 'AI review already exists for this proposal',
           data: existingAIReview,
         });
+        return;
       }
 
       // Create a new AI review
@@ -57,7 +58,7 @@ class AIScoringController {
       await aiReview.save();
 
       // Generate AI scores and update the review
-      await this.generateAIReviewScores(aiReview._id.toString());
+      await this.generateAIReviewScores(aiReview._id as string);
 
       // Fetch the updated review
       const completedAIReview = await Review.findById(aiReview._id);

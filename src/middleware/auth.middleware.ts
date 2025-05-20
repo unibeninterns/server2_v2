@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError, ForbiddenError } from '../utils/customErrors';
 import tokenService from '../services/token.service';
 import User, { UserRole } from '../model/user.model';
-import Reviewer from '../Reviewers/model/reviewer.model';
 
 interface UserPayload {
   userId: string;
@@ -109,7 +108,7 @@ const authenticateReviewerToken = async (
 
     // For reviewer, check the Reviewer model
     if (user.role === UserRole.REVIEWER) {
-      const reviewer = await Reviewer.findById(payload.userId);
+      const reviewer = await User.findById(payload.userId);
 
       if (!reviewer) {
         throw new UnauthorizedError('Reviewer not found');
