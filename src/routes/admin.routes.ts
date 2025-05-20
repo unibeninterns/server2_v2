@@ -5,6 +5,7 @@ import {
   rateLimiter,
 } from '../middleware/auth.middleware';
 import researcherManagementRoutes from '../researchers/routes/researcher-management.routes';
+import assignReviewRoutes from '../Review_System/routes/assignReview.routes';
 
 const router = express.Router();
 
@@ -36,5 +37,6 @@ router.get(
 );
 
 router.use('/researcher', researcherManagementRoutes);
+router.use('/', assignReviewRoutes);
 
 export default router;

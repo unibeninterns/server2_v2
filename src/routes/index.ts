@@ -6,7 +6,7 @@ import adminRoutes from './admin.routes';
 import authRoutes from './auth.routes';
 import researcherRoutes from '../researchers/routes/researcher.routes';
 import reviewerRoutes from '../Reviewers/routes/reviewer.routes';
-import reviewSystemRoutes from '../Review_System/routes/index';
+import reviewSystemRoutes from '../Review_System/routes/review.routes';
 
 const router = Router();
 
