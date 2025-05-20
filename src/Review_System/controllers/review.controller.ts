@@ -107,12 +107,10 @@ class ReviewController {
 
   // Get a specific review by ID
   getReviewById = asyncHandler(
-    async (
-      req: GetReviewRequest,
-      res: Response<IReviewResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
+      const user = (req as ResearcherAuthenticatedRequest).user;
       const { id } = req.params;
-      const reviewerId = req.user.id; // From auth middleware
+      const reviewerId = user.id; // From auth middleware
 
       const review = await Review.findOne({
         _id: id,
@@ -166,12 +164,10 @@ class ReviewController {
 
   // Submit a review
   submitReview = asyncHandler(
-    async (
-      req: SubmitReviewRequest,
-      res: Response<IReviewResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
+      const user = (req as ResearcherAuthenticatedRequest).user;
       const { id } = req.params;
-      const reviewerId = req.user.id; // From auth middleware
+      const reviewerId = user.id; // From auth middleware
       const { scores, comments } = req.body;
 
       // Find review and check permission
@@ -330,12 +326,10 @@ class ReviewController {
   };
 
   getProposalForReview = asyncHandler(
-    async (
-      req: GetProposalReviewRequest,
-      res: Response<IReviewResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
+      const user = (req as ResearcherAuthenticatedRequest).user;
       const { proposalId } = req.params;
-      const reviewerId = req.user.id;
+      const reviewerId = user.id;
 
       // Check if reviewer is assigned to this proposal
       const reviewAssignment = await Review.findOne({
@@ -414,12 +408,10 @@ class ReviewController {
 
   // Update review before final submission (save progress)
   saveReviewProgress = asyncHandler(
-    async (
-      req: SaveReviewProgressRequest,
-      res: Response<IReviewResponse>
-    ): Promise<void> => {
+    async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
+      const user = (req as ResearcherAuthenticatedRequest).user;
       const { id } = req.params;
-      const reviewerId = req.user.id;
+      const reviewerId = user.id;
       const { scores, comments } = req.body;
 
       const review = await Review.findOne({
