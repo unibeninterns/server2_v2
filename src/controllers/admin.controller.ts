@@ -3,6 +3,7 @@ import Proposal from '../Proposal_Submission/models/proposal.model';
 import { NotFoundError, UnauthorizedError } from '../utils/customErrors';
 import asyncHandler from '../utils/asyncHandler';
 import logger from '../utils/logger';
+import User from '../model/user.model';
 
 interface IProposalQuery {
   status?: string;
@@ -60,6 +61,7 @@ class AdminController {
         limit = 10,
         status,
         submitterType,
+        faculty,
         sort = 'createdAt',
         order = 'desc',
       } = req.query;
@@ -80,26 +82,70 @@ class AdminController {
         sort: sortObj,
       };
 
-      const proposals = await Proposal.find(query)
-        .sort(sortObj)
-        .skip((options.page - 1) * options.limit)
-        .limit(options.limit)
-        .populate(
-          'submitter',
-          'name email userType phoneNumber alternativeEmail'
+      // Add faculty filter logic
+      let proposals;
+
+      if (faculty) {
+        // Since faculty is stored in the User model, we need to first find users with the specified faculty
+        const usersWithFaculty = await User.find({
+          faculty: faculty as string,
+        }).select('_id');
+        const userIds = usersWithFaculty.map((user) => user._id);
+
+        // Then find proposals submitted by those users
+        proposals = await Proposal.find({
+          ...query,
+          submitter: { $in: userIds },
+        })
+          .sort({ [sort as string]: order === 'asc' ? 1 : -1 })
+          .skip(
+            (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
+          )
+          .limit(parseInt(limit as string, 10))
+          .populate(
+            'submitter',
+            'name email userType phoneNumber alternativeEmail'
+          );
+
+        // Count total for pagination
+        const totalProposals = await Proposal.countDocuments({
+          ...query,
+          submitter: { $in: userIds },
+        });
+
+        logger.info(
+          `Admin ${user.id} retrieved proposals list filtered by faculty`
         );
 
-      const totalProposals = await Proposal.countDocuments(query);
+        res.status(200).json({
+          success: true,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
+          currentPage: parseInt(page as string, 10),
+          data: proposals,
+        });
+      } else {
+        const proposals = await Proposal.find(query)
+          .sort(sortObj)
+          .skip((options.page - 1) * options.limit)
+          .limit(options.limit)
+          .populate(
+            'submitter',
+            'name email userType phoneNumber alternativeEmail'
+          );
 
-      logger.info(`Admin ${user.id} retrieved proposals list`);
+        const totalProposals = await Proposal.countDocuments(query);
 
-      res.status(200).json({
-        success: true,
-        count: proposals.length,
-        totalPages: Math.ceil(totalProposals / options.limit),
-        currentPage: options.page,
-        data: proposals,
-      });
+        logger.info(`Admin ${user.id} retrieved proposals list`);
+
+        res.status(200).json({
+          success: true,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / options.limit),
+          currentPage: options.page,
+          data: proposals,
+        });
+      }
     }
   );
 
@@ -130,6 +176,54 @@ class AdminController {
       res.status(200).json({
         success: true,
         data: proposal,
+      });
+    }
+  );
+
+  getFacultiesWithProposals = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      // Check if user is admin
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      logger.info(`Admin ${user.id} retrieving faculties with proposals`);
+
+      // Aggregate to find faculties with proposals
+      const facultiesWithProposals = await User.aggregate([
+        // Only get users who have submitted proposals
+        { $match: { proposals: { $exists: true, $ne: [] } } },
+        // Get only the faculty IDs
+        { $group: { _id: '$faculty' } },
+        // Lookup the faculty details
+        {
+          $lookup: {
+            from: 'Faculties', // Collection name
+            localField: '_id',
+            foreignField: '_id',
+            as: 'facultyDetails',
+          },
+        },
+        // Unwind the faculty details array
+        { $unwind: '$facultyDetails' },
+        // Project only the needed fields
+        {
+          $project: {
+            _id: '$facultyDetails._id',
+            code: '$facultyDetails.code',
+            title: '$facultyDetails.title',
+          },
+        },
+      ]);
+
+      logger.info(facultiesWithProposals);
+
+      res.status(200).json({
+        success: true,
+        data: facultiesWithProposals,
       });
     }
   );

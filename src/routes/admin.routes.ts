@@ -28,6 +28,13 @@ router.get(
   adminController.getProposalById
 );
 
+router.get(
+  '/faculties-with-proposals',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.getFacultiesWithProposals
+);
+
 // Get proposal statistics
 router.get(
   '/statistics',

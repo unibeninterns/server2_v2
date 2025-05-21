@@ -31,10 +31,11 @@ class ResearcherController {
       }
 
       // Find all proposals by this researcher
-      const proposals = await Proposal.find({ submitter: userId }).sort({
-        updatedAt: -1,
-      });
-
+      const proposals = await Proposal.find({ submitter: userId })
+        .sort({
+          updatedAt: -1,
+        })
+        .populate('submitter', 'name email userType');
       // Calculate statistics
       const totalProposals = proposals.length;
       const statusCounts: Record<string, number> = {
@@ -81,7 +82,10 @@ class ResearcherController {
       const { proposalId } = req.params;
 
       // Find the proposal and verify ownership
-      const proposal = await Proposal.findById(proposalId);
+      const proposal = await Proposal.findById(proposalId).populate(
+        'submitter',
+        'name email userType phoneNumber alternativeEmail faculty department academicTitle'
+      );
 
       if (!proposal) {
         throw new NotFoundError('Proposal not found');
