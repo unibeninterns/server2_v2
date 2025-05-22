@@ -4,6 +4,7 @@ import { NotFoundError, UnauthorizedError } from '../utils/customErrors';
 import asyncHandler from '../utils/asyncHandler';
 import logger from '../utils/logger';
 import User from '../model/user.model';
+import Faculty from '../Proposal_Submission/models/faculty.model';
 
 interface IProposalQuery {
   status?: string;
@@ -192,39 +193,36 @@ class AdminController {
 
       logger.info(`Admin ${user.id} retrieving faculties with proposals`);
 
-      // Aggregate to find faculties with proposals
-      const facultiesWithProposals = await User.aggregate([
-        // Only get users who have submitted proposals
-        { $match: { proposals: { $exists: true, $ne: [] } } },
-        // Get only the faculty IDs
-        { $group: { _id: '$faculty' } },
-        // Lookup the faculty details
-        {
-          $lookup: {
-            from: 'Faculties', // Collection name
-            localField: '_id',
-            foreignField: '_id',
-            as: 'facultyDetails',
-          },
-        },
-        // Unwind the faculty details array
-        { $unwind: '$facultyDetails' },
-        // Project only the needed fields
-        {
-          $project: {
-            _id: '$facultyDetails._id',
-            code: '$facultyDetails.code',
-            title: '$facultyDetails.title',
-          },
-        },
-      ]);
+      try {
+        // Get all submitters who have created proposals
+        const proposalSubmitters = await Proposal.find().distinct('submitter');
+        logger.info(`Found ${proposalSubmitters.length} proposal submitters`);
 
-      logger.info(facultiesWithProposals);
+        // Find users who submitted proposals and get their faculty IDs
+        const facultyIds = await User.find({
+          _id: { $in: proposalSubmitters },
+        }).distinct('faculty');
 
-      res.status(200).json({
-        success: true,
-        data: facultiesWithProposals,
-      });
+        logger.info(`Found ${facultyIds.length} distinct faculty IDs`);
+
+        // Find the faculty details for these IDs
+        const faculties = await Faculty.find({
+          _id: { $in: facultyIds },
+        });
+
+        logger.info(`Retrieved ${faculties.length} faculties with proposals`);
+
+        res.status(200).json({
+          success: true,
+          data: faculties,
+        });
+      } catch (error) {
+        logger.error(`Error retrieving faculties with proposals: ${error}`);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to retrieve faculties with proposals',
+        });
+      }
     }
   );
 
