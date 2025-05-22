@@ -63,6 +63,12 @@ router.post(
   reviewerController.addReviewerProfile
 );
 
+router.get(
+  '/invitations',
+  authenticateAdminToken,
+  reviewerController.getInvitations
+);
+
 router.get('/', authenticateAdminToken, reviewerController.getAllReviewers);
 
 router.get('/:id', authenticateAdminToken, reviewerController.getReviewerById);
@@ -71,12 +77,6 @@ router.delete(
   '/:id',
   authenticateAdminToken,
   reviewerController.deleteReviewer
-);
-
-router.get(
-  '/invitations',
-  authenticateAdminToken,
-  reviewerController.getInvitations
 );
 
 router.post(
