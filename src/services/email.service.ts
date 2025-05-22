@@ -171,7 +171,7 @@ class EmailService {
     email: string,
     token: string
   ): Promise<void> {
-    const inviteUrl = `${this.frontendUrl}/reviewer-register/${token}`;
+    const inviteUrl = `${this.frontendUrl}/accept-invitation/${token}`;
 
     try {
       await this.transporter.sendMail({

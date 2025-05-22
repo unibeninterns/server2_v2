@@ -365,6 +365,11 @@ class ReviewerController {
 
       const { id } = req.params;
 
+      // Validate ObjectId format
+      if (!Types.ObjectId.isValid(id)) {
+        throw new BadRequestError('Invalid reviewer ID');
+      }
+
       const reviewer = await User.findById(id);
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
