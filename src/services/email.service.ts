@@ -260,7 +260,7 @@ class EmailService {
   }
 
   async sendCredentialsEmail(email: string, password: string): Promise<void> {
-    const loginUrl = `${this.frontendUrl}/researcher-login`;
+    const loginUrl = `${this.frontendUrl}/researcher/login`;
 
     try {
       await this.transporter.sendMail({
