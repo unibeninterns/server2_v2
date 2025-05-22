@@ -40,7 +40,7 @@ interface IReviewerResponse {
 
 interface AuthenticatedRequest extends Request {
   user: {
-    userId: string;
+    _id: string;
     email?: string;
     role: string;
   };
@@ -302,7 +302,7 @@ class ReviewerController {
 
       const totalReviewers = await User.countDocuments(query);
 
-      logger.info(`Admin ${user.userId} retrieved reviewers list`);
+      logger.info(`Admin ${user._id} retrieved reviewers list`);
 
       res.status(200).json({
         success: true,
@@ -343,7 +343,7 @@ class ReviewerController {
         throw new NotFoundError('Reviewer not found');
       }
 
-      logger.info(`Admin ${user.userId} retrieved reviewer ${id}`);
+      logger.info(`Admin ${user._id} retrieved reviewer ${id}`);
 
       res.status(200).json({
         success: true,
@@ -383,7 +383,7 @@ class ReviewerController {
       }
 
       await User.findByIdAndDelete(id);
-      logger.info(`Admin ${user.userId} deleted reviewer ${id}`);
+      logger.info(`Admin ${user._id} deleted reviewer ${id}`);
 
       res.status(200).json({
         success: true,
@@ -428,7 +428,7 @@ class ReviewerController {
           : null,
       }));
 
-      logger.info(`Admin ${user.userId} retrieved reviewer invitations list`);
+      logger.info(`Admin ${user._id} retrieved reviewer invitations list`);
 
       res.status(200).json({
         success: true,
@@ -494,7 +494,7 @@ class ReviewerController {
   // Get reviewer dashboard
   getReviewerDashboard = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const userId = (req as AuthenticatedRequest).user.userId;
+      const userId = (req as AuthenticatedRequest).user._id;
 
       const reviewer = await User.findById(userId);
       if (!reviewer) {
