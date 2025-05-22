@@ -193,7 +193,7 @@ class EmailService {
     email: string,
     password: string
   ): Promise<void> {
-    const loginUrl = `${this.frontendUrl}/reviewer-login`;
+    const loginUrl = `${this.frontendUrl}/reviewer/login`;
 
     try {
       await this.transporter.sendMail({
