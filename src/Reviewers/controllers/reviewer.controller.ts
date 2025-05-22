@@ -387,6 +387,51 @@ class ReviewerController {
     }
   );
 
+  // Get all reviewer invitations
+  getInvitations = asyncHandler(
+    async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
+      const user = (req as AuthenticatedRequest).user;
+      // Check if user is admin
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      // Update expired invitations
+      await User.updateMany(
+        {
+          role: UserRole.REVIEWER,
+          invitationStatus: 'pending',
+          inviteTokenExpires: { $lt: new Date() },
+        },
+        { invitationStatus: 'expired' }
+      );
+
+      const invitations = await User.find({
+        role: UserRole.REVIEWER,
+        invitationStatus: { $in: ['pending', 'expired', 'accepted', 'added'] },
+      }).select('_id email inviteTokenExpires createdAt invitationStatus');
+
+      const formattedInvitations = invitations.map((invitation) => ({
+        id: invitation._id,
+        email: invitation.email,
+        status: invitation.invitationStatus,
+        created: invitation.createdAt.toISOString().split('T')[0],
+        expires: invitation.inviteTokenExpires
+          ? invitation.inviteTokenExpires.toISOString().split('T')[0]
+          : null,
+      }));
+
+      logger.info(`Admin ${user.userId} retrieved reviewer invitations list`);
+
+      res.status(200).json({
+        success: true,
+        data: formattedInvitations,
+      });
+    }
+  );
+
   // Resend invitation
   resendInvitation = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {

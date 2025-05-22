@@ -73,6 +73,12 @@ router.delete(
   reviewerController.deleteReviewer
 );
 
+router.get(
+  '/invitations',
+  authenticateAdminToken,
+  reviewerController.getInvitations
+);
+
 router.post(
   '/:id/resend-invitation',
   authenticateAdminToken,
