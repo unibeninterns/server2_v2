@@ -38,7 +38,11 @@ const authenticateAdminToken = async (
       throw new ForbiddenError('Access denied: Admin privileges required');
     }
 
-    req.user = user;
+    req.user = {
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+    };
     next();
   } catch (error) {
     next(error);
