@@ -44,7 +44,6 @@ const UserSchema: Schema<IUser> = new Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
       trim: true,
     },
     email: {
@@ -77,12 +76,10 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       enum: Object.values(UserRole),
       default: UserRole.RESEARCHER,
-      required: true,
     },
     userType: {
       type: String,
       enum: Object.values(UserType),
-      required: [true, 'User type is required'],
     },
     department: {
       type: Schema.Types.ObjectId,
@@ -109,7 +106,6 @@ const UserSchema: Schema<IUser> = new Schema(
     phoneNumber: {
       type: String,
       trim: true,
-      required: [true, 'Phone number is required'],
     },
     refreshToken: {
       type: String,
