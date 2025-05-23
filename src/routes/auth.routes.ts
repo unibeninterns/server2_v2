@@ -7,6 +7,8 @@ const router = Router();
 const standardLimit = rateLimiter(20, 60 * 60 * 1000);
 
 router.post('/admin-login', standardLimit, authController.adminLogin);
+router.post('/researcher-login', standardLimit, authController.researcherLogin);
+router.post('/reviewer-login', standardLimit, authController.reviewerLogin);
 router.post('/refresh-token', standardLimit, authController.refreshToken);
 router.post('/logout', authController.logout);
 

@@ -257,100 +257,106 @@ class ReviewerController {
 
   // Get all reviewers with pagination and filtering
   getAllReviewers = asyncHandler(
-    async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
-      const user = (req as AuthenticatedRequest).user;
-      // Check if user is admin
-      if (user.role !== 'admin') {
-        throw new UnauthorizedError(
-          'You do not have permission to access this resource'
-        );
-      }
-
-      const {
-        page = 1,
-        limit = 10,
-        status,
-        faculty,
-        department,
-        sort = 'createdAt',
-        order = 'desc',
-      } = req.query;
-
-      const query: IReviewerQuery = {};
-
-      // Apply filters if provided
-      if (status) query.status = status as string;
-      if (faculty) query.faculty = faculty as string;
-      if (department) query.department = department as string;
-
-      // Build sort object
-      const sortObj: Record<string, 1 | -1> = {};
-      sortObj[sort as string] = order === 'asc' ? 1 : -1;
-
-      const options: IPaginationOptions = {
-        page: parseInt(page as string, 10),
-        limit: parseInt(limit as string, 10),
-        sort: sortObj,
-      };
-
-      const reviewers = await User.find(query)
-        .sort(sortObj)
-        .skip((options.page - 1) * options.limit)
-        .limit(options.limit)
-        .populate('faculty', 'name code')
-        .populate('department', 'name code');
-
-      const totalReviewers = await User.countDocuments(query);
-
-      logger.info(`Admin ${user._id} retrieved reviewers list`);
-
-      res.status(200).json({
-        success: true,
-        count: reviewers.length,
-        totalPages: Math.ceil(totalReviewers / options.limit),
-        currentPage: options.page,
-        data: reviewers,
-      });
+  async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
+    const user = (req as AuthenticatedRequest).user;
+    // Check if user is admin
+    if (user.role !== 'admin') {
+      throw new UnauthorizedError(
+        'You do not have permission to access this resource'
+      );
     }
-  );
+
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      faculty,
+      department,
+      sort = 'createdAt',
+      order = 'desc',
+    } = req.query;
+
+    // Base query to filter only reviewers
+    const query: any = {
+      role: UserRole.REVIEWER // Add this filter for reviewers only
+    };
+
+    // Apply additional filters if provided
+    if (status) query.invitationStatus = status as string; 
+    if (faculty) query.faculty = faculty as string;
+    if (department) query.department = department as string;
+
+    // Build sort object
+    const sortObj: Record<string, 1 | -1> = {};
+    sortObj[sort as string] = order === 'asc' ? 1 : -1;
+
+    const options: IPaginationOptions = {
+      page: parseInt(page as string, 10),
+      limit: parseInt(limit as string, 10),
+      sort: sortObj,
+    };
+
+    const reviewers = await User.find(query)
+      .sort(sortObj)
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit)
+      .populate('faculty', 'title code')
+      .populate('department', 'title code');
+
+    const totalReviewers = await User.countDocuments(query);
+
+    logger.info(`Admin ${user._id} retrieved reviewers list`);
+
+    res.status(200).json({
+      success: true,
+      count: reviewers.length,
+      totalPages: Math.ceil(totalReviewers / options.limit),
+      currentPage: options.page,
+      data: reviewers,
+    });
+  }
+);
 
   // Get reviewer by ID
   getReviewerById = asyncHandler(
-    async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
-      const user = (req as AuthenticatedRequest).user;
-      // Check if user is admin
-      if (user.role !== 'admin') {
-        throw new UnauthorizedError(
-          'You do not have permission to access this resource'
-        );
-      }
-
-      const { id } = req.params;
-
-      const reviewer = await User.findById(id)
-        .populate('faculty', 'name code')
-        .populate('department', 'name code')
-        .populate({
-          path: 'assignedProposals',
-          populate: {
-            path: 'submitter',
-            select: 'name email',
-          },
-        })
-        .populate('completedReviews');
-
-      if (!reviewer) {
-        throw new NotFoundError('Reviewer not found');
-      }
-
-      logger.info(`Admin ${user._id} retrieved reviewer ${id}`);
-
-      res.status(200).json({
-        success: true,
-        data: reviewer,
-      });
+  async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
+    const user = (req as AuthenticatedRequest).user;
+    // Check if user is admin
+    if (user.role !== 'admin') {
+      throw new UnauthorizedError(
+        'You do not have permission to access this resource'
+      );
     }
-  );
+
+    const { id } = req.params;
+
+    const reviewer = await User.findOne({
+      _id: id,
+      role: UserRole.REVIEWER
+    })
+      .populate('faculty', 'title code')
+      .populate('department', 'title code')
+      .populate({
+        path: 'assignedProposals',
+        populate: {
+          path: 'submitter',
+          select: 'name email',
+        },
+      })
+      .populate('completedReviews');
+
+    if (!reviewer) {
+      throw new NotFoundError('Reviewer not found');
+    }
+
+    logger.info(`Admin ${user._id} retrieved reviewer ${id}`);
+
+    res.status(200).json({
+      success: true,
+      data: reviewer,
+    });
+  }
+);
 
   // Delete a reviewer
   deleteReviewer = asyncHandler(

@@ -77,6 +77,126 @@ class AuthController {
     }
   );
 
+  // Add these methods to your existing AuthController class
+
+  researcherLogin = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const { email, password } = req.body;
+      logger.info(`Researcher login attempt for email: ${email}`);
+
+      const user = await User.findOne({ email }).select('+password');
+      if (!user) {
+        logger.warn(`No researcher account found for email: ${email}`);
+        throw new UnauthorizedError('No account found with this email address');
+      }
+
+      if (user.role !== 'researcher') {
+        logger.warn(`Non-researcher user attempted researcher login: ${email}`);
+        throw new UnauthorizedError(
+          'Access denied: Researcher privileges required'
+        );
+      }
+
+      if (!user.isActive) {
+        logger.warn(`Inactive researcher attempted login: ${email}`);
+        throw new UnauthorizedError(
+          'Your account is not active. Please contact administrator.'
+        );
+      }
+
+      const isPasswordCorrect = await user.comparePassword(password);
+      if (!isPasswordCorrect) {
+        logger.warn(`Incorrect password attempt for researcher: ${email}`);
+        throw new UnauthorizedError('Incorrect password');
+      }
+
+      const tokens = tokenService.generateTokens({
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+      });
+
+      user.refreshToken = tokens.refreshToken;
+      user.lastLogin = new Date();
+      await user.save();
+
+      tokenService.setRefreshTokenCookie(res, tokens.refreshToken);
+      logger.info(`Researcher login successful for: ${email}`);
+
+      const response: IAuthResponse = {
+        success: true,
+        accessToken: tokens.accessToken,
+        user: {
+          id: (user._id as ObjectId).toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      };
+
+      res.json(response);
+    }
+  );
+
+  reviewerLogin = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const { email, password } = req.body;
+      logger.info(`Reviewer login attempt for email: ${email}`);
+
+      const user = await User.findOne({ email }).select('+password');
+      if (!user) {
+        logger.warn(`No reviewer account found for email: ${email}`);
+        throw new UnauthorizedError('No account found with this email address');
+      }
+
+      if (user.role !== 'reviewer') {
+        logger.warn(`Non-reviewer user attempted reviewer login: ${email}`);
+        throw new UnauthorizedError(
+          'Access denied: Reviewer privileges required'
+        );
+      }
+
+      if (!user.isActive) {
+        logger.warn(`Inactive reviewer attempted login: ${email}`);
+        throw new UnauthorizedError(
+          'Your account is not active. Please contact administrator.'
+        );
+      }
+
+      const isPasswordCorrect = await user.comparePassword(password);
+      if (!isPasswordCorrect) {
+        logger.warn(`Incorrect password attempt for reviewer: ${email}`);
+        throw new UnauthorizedError('Incorrect password');
+      }
+
+      const tokens = tokenService.generateTokens({
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+      });
+
+      user.refreshToken = tokens.refreshToken;
+      user.lastLogin = new Date();
+      await user.save();
+
+      tokenService.setRefreshTokenCookie(res, tokens.refreshToken);
+      logger.info(`Reviewer login successful for: ${email}`);
+
+      const response: IAuthResponse = {
+        success: true,
+        accessToken: tokens.accessToken,
+        user: {
+          id: (user._id as ObjectId).toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      };
+
+      res.json(response);
+    }
+  );
+
   refreshToken = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const refreshToken = req.cookies.refreshToken;
@@ -96,8 +216,8 @@ class AuthController {
       const userId = user._id as ObjectId;
       const tokens = await tokenService.rotateRefreshToken(refreshToken, {
         userId: userId.toString(),
-        email: user.email, // Add the required email property
-        role: decoded.role || 'researcher',
+        email: user.email,
+        role: decoded.role,
       });
 
       user.refreshToken = tokens.refreshToken;
