@@ -92,7 +92,7 @@ class ResearcherController {
       }
 
       // Check if the researcher owns this proposal
-      if (proposal.submitter.toString() !== userId) {
+      if (proposal.submitter._id.toString() !== userId.toString()) {
         throw new UnauthorizedError(
           'You do not have permission to view this proposal'
         );
