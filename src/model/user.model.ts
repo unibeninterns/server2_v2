@@ -29,8 +29,8 @@ export interface IUser extends Document {
   inviteToken?: string;
   inviteTokenExpires?: Date;
   proposals: Types.ObjectId[];
-  assignedProposals: Types.ObjectId[];
-  completedReviews: Types.ObjectId[];
+  assignedProposals?: Types.ObjectId[];
+  completedReviews?: Types.ObjectId[];
   isActive: boolean;
   invitationStatus: 'pending' | 'added' | 'accepted' | 'expired';
   credentialsSent: boolean;
