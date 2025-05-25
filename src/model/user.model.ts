@@ -63,6 +63,7 @@ const UserSchema: Schema<IUser> = new Schema(
       trim: true,
       unique: true,
       sparse: true,
+      default: undefined,
       match: [
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         'Please provide a valid email address',
