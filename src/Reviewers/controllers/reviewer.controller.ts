@@ -501,9 +501,15 @@ class ReviewerController {
   // Get reviewer dashboard
   getReviewerDashboard = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const userId = (req as AuthenticatedRequest).user._id;
+      const user = (req as AuthenticatedRequest).user;
 
-      const reviewer = await User.findById(userId);
+      const userId = user._id;
+      logger.info(`Reviewer dashboard request for user: ${userId}`);
+
+      const reviewer = await User.findById(userId).select(
+        '-password -refreshToken'
+      );
+
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
