@@ -61,7 +61,6 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       lowercase: true,
       trim: true,
-      unique: true,
       default: undefined,
       set: (value: string | null | undefined) => {
         if (!value || value.trim() === '') return undefined;

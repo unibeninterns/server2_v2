@@ -1,7 +1,7 @@
-import User from '../model/user.model.js';
-import connectDB from '../db/database.js';
-import validateEnv from '../utils/validateEnv.js';
-import logger from '../utils/logger.js';
+import User from '../model/user.model';
+import connectDB from '../db/database';
+import validateEnv from '../utils/validateEnv';
+import logger from '../utils/logger';
 
 validateEnv();
 
@@ -13,6 +13,7 @@ interface IUser {
   isActive: boolean;
   phoneNumber: string;
   userType: string;
+  alternativeEmail: string;
 }
 
 export const createAdminUser = async (): Promise<void> => {
@@ -44,6 +45,7 @@ export const createAdminUser = async (): Promise<void> => {
       isActive: true,
       phoneNumber: process.env.ADMIN_PHONE || '0000000000',
       userType: 'staff',
+      alternativeEmail: 'admin1@gmail.com', // Default alternative email
     };
 
     const admin = await User.create(adminData);
@@ -51,7 +53,7 @@ export const createAdminUser = async (): Promise<void> => {
     logger.info(`Admin user created with email: ${admin.email}`);
   } catch (error) {
     if (error instanceof Error) {
-      logger.error('Error creating admin user:', error.message);
+      logger.error('Error creating admin user:', error);
     } else {
       logger.error('Unknown error occurred while creating admin user');
     }
