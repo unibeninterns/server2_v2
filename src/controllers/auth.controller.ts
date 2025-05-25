@@ -199,7 +199,7 @@ class AuthController {
 
   refreshToken = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const refreshToken = req.cookies.refreshToken;
+      const refreshToken = req.cookies?.refreshToken;
 
       if (!refreshToken) {
         throw new UnauthorizedError('Refresh token is required');
