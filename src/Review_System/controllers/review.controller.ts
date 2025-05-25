@@ -9,6 +9,7 @@ import Award, { AwardStatus } from '../models/award.model';
 import { NotFoundError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
+import reconciliationController from '../controllers/reconciliation.controller';
 
 interface IReviewResponse {
   success: boolean;
@@ -218,32 +219,39 @@ class ReviewController {
           // If this is a reconciliation review, process it
           if (review.reviewType === ReviewType.RECONCILIATION) {
             // Import and use reconciliation controller to process reconciliation
-            const reconciliationController =
-              require('../controllers/reconciliation.controller').default;
-            await reconciliationController.processReconciliationReview(
-              { params: { reviewId: id } },
-              res
-            );
-            return; // End execution since reconciliation controller has already sent response
+            // Import and use reconciliation controller to process reconciliation
+            // Assuming reconciliationController is imported at the top of the file
+            const reconciliationResult =
+              await reconciliationController.processReconciliationReview(id);
+            // The reconciliation controller now handles sending the response internally
+            // We just need to ensure the process completes.
+            // If it returns a result, we can use it for logging or further processing.
+            if (reconciliationResult) {
+              logger.info(
+                `Reconciliation review processed for proposal ${reconciliationResult.proposal}`
+              );
+              // Since the reconciliation controller sends the response, we return here.
+              // If it didn't send a response, we would construct one.
+              res.status(200).json({
+                success: true,
+                message: 'Reconciliation review processed successfully',
+                data: reconciliationResult,
+              });
+            } else {
+              res.status(500).json({
+                success: false,
+                message: 'Failed to process reconciliation review',
+              });
+            }
+            return;
           }
         } else {
           // No reconciliation exists, check if one is needed by using the reconciliation controller
           try {
-            const reconciliationController =
-              require('../controllers/reconciliation.controller').default;
-            await reconciliationController.checkReviewDiscrepancies(
-              { params: { proposalId: review.proposal.toString() } },
-              {
-                status: () => ({ json: () => {} }),
-                json: () => {},
-              } as unknown as Response
-            );
-
-            // Check again if reconciliation was created
-            const reconciliationCreated = await Review.findOne({
-              proposal: review.proposal,
-              reviewType: ReviewType.RECONCILIATION,
-            });
+            const reconciliationCreated =
+              await reconciliationController.checkReviewDiscrepancies(
+                review.proposal.toString()
+              );
 
             // If no reconciliation was needed or created, finalize the proposal
             if (!reconciliationCreated) {
@@ -295,26 +303,14 @@ class ReviewController {
   // Helper method to generate discrepancy analysis for a proposal
   generateDiscrepancyAnalysis = async (proposalId: string) => {
     try {
-      const reconciliationController =
-        require('../controllers/reconciliation.controller').default;
-
-      // Create a mock response object to capture the result
-      const mockRes = {
-        status: () => mockRes,
-        json: (data: any) => {
-          return data;
-        },
-      };
-
       // Execute the discrepancy analysis
       const result = await reconciliationController.getDiscrepancyDetails(
-        { params: { proposalId } },
-        mockRes as any
+        proposalId
       );
 
       return (
-        result?.data || { criteriaDiscrepancies: [], overallDiscrepancy: {} }
-      );
+        result || { criteriaDiscrepancies: [], overallDiscrepancy: {} }
+      ); // The refactored method returns the data directly
     } catch (error) {
       logger.error(
         `Error generating discrepancy analysis: ${

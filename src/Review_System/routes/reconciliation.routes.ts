@@ -3,6 +3,7 @@ import { Router } from 'express';
 import reconciliationController from '../controllers/reconciliation.controller';
 import { authenticateAdminToken } from '../../middleware/auth.middleware';
 import validateRequest from '../../middleware/validateRequest';
+import asyncHandler from '../../utils/asyncHandler'; // Import asyncHandler
 import { z } from 'zod';
 
 const router = Router();
@@ -28,21 +29,33 @@ router.get(
   '/check-discrepancies/:proposalId',
   authenticateAdminToken,
   validateRequest(proposalIdSchema),
-  reconciliationController.checkReviewDiscrepancies
+  asyncHandler(async (req, res) => {
+    const { proposalId } = req.params;
+    const result = await reconciliationController.checkReviewDiscrepancies(proposalId);
+    res.status(200).json({ success: true, data: result });
+  })
 );
 
 router.post(
   '/process/:reviewId',
   authenticateAdminToken,
   validateRequest(reviewIdSchema),
-  reconciliationController.processReconciliationReview
+  asyncHandler(async (req, res) => {
+    const { reviewId } = req.params;
+    const result = await reconciliationController.processReconciliationReview(reviewId);
+    res.status(200).json({ success: true, data: result });
+  })
 );
 
 router.get(
   '/discrepancy/:proposalId',
   authenticateAdminToken,
   validateRequest(proposalIdSchema),
-  reconciliationController.getDiscrepancyDetails
+  asyncHandler(async (req, res) => {
+    const { proposalId } = req.params;
+    const result = await reconciliationController.getDiscrepancyDetails(proposalId);
+    res.status(200).json({ success: true, data: result });
+  })
 );
 
 export default router;
