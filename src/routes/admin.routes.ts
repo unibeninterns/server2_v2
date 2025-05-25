@@ -43,6 +43,35 @@ router.get(
   adminController.getProposalStatistics
 );
 
+// New routes for proposal decision and reporting
+router.get(
+  '/proposals-for-decision',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.getProposalsForDecision
+);
+
+router.patch(
+  '/proposals/:id/status',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.updateProposalStatus
+);
+
+router.post(
+  '/proposals/:proposalId/notify-applicants',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.notifyApplicants
+);
+
+router.get(
+  '/proposals/export-decisions',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.exportDecisionsReport
+);
+
 router.use('/researcher', researcherManagementRoutes);
 router.use('/', assignReviewRoutes);
 
