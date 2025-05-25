@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
+import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import YAML from 'yamljs';
 import compression from 'compression';
@@ -25,6 +26,7 @@ app.use(compression());
 app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
 app.use(rateLimit(rateLimitOptions));
+app.use(cookieParser());
 app.use(
   morgan('combined', {
     stream: {

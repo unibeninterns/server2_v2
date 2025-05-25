@@ -61,9 +61,11 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       lowercase: true,
       trim: true,
-      unique: true,
-      sparse: true,
       default: undefined,
+      set: (value: string | null | undefined) => {
+        if (!value || value.trim() === '') return undefined;
+        return value.toLowerCase().trim();
+      },
       match: [
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         'Please provide a valid email address',
@@ -165,6 +167,18 @@ const UserSchema: Schema<IUser> = new Schema(
   }
 );
 
+UserSchema.index(
+  { alternativeEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      alternativeEmail: { $type: 'string' }, // Only index non-null strings
+    },
+  }
+);
+
+UserSchema.index({ faculty: 1, role: 1, isActive: 1 });
+
 UserSchema.pre('save', async function (next) {
   if (this.password && this.isModified('password')) {
     const salt = await bcrypt.genSalt(10);
@@ -179,7 +193,5 @@ UserSchema.methods.comparePassword = async function (
   if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
-
-UserSchema.index({ faculty: 1, role: 1, isActive: 1 });
 
 export default mongoose.model<IUser>('User', UserSchema, 'Users_2');
