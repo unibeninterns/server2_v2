@@ -106,24 +106,16 @@ const authenticateReviewerToken = async (
       throw new UnauthorizedError('User not found');
     }
 
-    // For reviewer, check the Reviewer model
-    if (user.role === UserRole.REVIEWER) {
-      const reviewer = await User.findById(payload.userId);
-
-      if (!reviewer) {
-        throw new UnauthorizedError('Reviewer not found');
-      }
-
-      req.user = {
-        userId: payload.userId,
-        email: reviewer.email,
-        role: 'reviewer',
-      };
-
-      next();
-    } else {
+    if (user.role !== UserRole.REVIEWER) {
       throw new ForbiddenError('Access denied: Reviewer privileges required');
     }
+
+    if (!user.isActive) {
+      throw new UnauthorizedError('Your account is not active');
+    }
+
+    req.user = user;
+    next();
   } catch (error) {
     next(error);
   }
