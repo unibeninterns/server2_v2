@@ -69,6 +69,13 @@ router.get(
   reviewerController.getInvitations
 );
 
+// Reviewer dashboard - needs reviewer authentication
+router.get(
+  '/dashboard',
+  authenticateReviewerToken,
+  reviewerController.getReviewerDashboard
+);
+
 router.get('/', authenticateAdminToken, reviewerController.getAllReviewers);
 
 router.get('/:id', authenticateAdminToken, reviewerController.getReviewerById);
@@ -90,13 +97,6 @@ router.post(
   '/complete-profile/:token',
   validateRequest(completeProfileSchema),
   reviewerController.completeReviewerProfile
-);
-
-// Reviewer dashboard - needs reviewer authentication
-router.get(
-  '/dashboard',
-  authenticateReviewerToken,
-  reviewerController.getReviewerDashboard
 );
 
 export default router;
