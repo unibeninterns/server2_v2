@@ -64,6 +64,25 @@ class EmailService {
     return submitterType === 'staff' ? 'Staff Member' : "Master's Student";
   }
 
+  // Public method to send a custom email
+  async sendCustomEmail(to: string, subject: string, body: string): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: to,
+        subject: subject,
+        html: body, // Assuming the body is HTML or plain text
+      });
+      logger.info(`Custom email sent to: ${to} with subject: ${subject}`);
+    } catch (error) {
+      logger.error(
+        `Failed to send custom email to ${to} with subject ${subject}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw error; // Re-throw the error so the caller can handle it
+    }
+  }
+
   async sendProposalNotificationEmail(
     reviewerEmails: string | string[],
     researcher: string,

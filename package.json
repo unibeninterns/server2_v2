@@ -10,13 +10,15 @@
     "lint:fix": "eslint 'src/**/*.{ts,js}' --fix",
     "build": "npm run clean && tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts"
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "worker": "ts-node src/worker.ts"
   },
   "keywords": [],
-  "author": "Raymond Omoyakhi <raymondomoyakhi@gmail.com> and Udezue Oluomachi <basilchimaobi2@gmail.com>.",
+  "author": "Raymond Omoyakhi <raymondomoyakhi@gmail.com> and Oluomachi Udezue <basilchimaobi2@gmail.com>.",
   "license": "ISC",
   "description": "A Research Submission Management API for grants and research funding.",
   "dependencies": {
+    "agenda": "^5.0.0",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "compression": "^1.8.0",
@@ -41,6 +43,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "typescript-eslint": "^8.32.0",
+    "uniben-ai-proposal-review-cli": "^1.0.3",
     "winston": "^3.17.0",
     "yamljs": "^0.3.0",
     "zod": "^3.24.4"

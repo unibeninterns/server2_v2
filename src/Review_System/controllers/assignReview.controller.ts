@@ -13,7 +13,7 @@ import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import { NotFoundError } from '../../utils/customErrors';
-import AIScoringController from './aiScoring.controller';
+import agenda from '../../config/agenda'; // Import the agenda instance
 import { Types } from 'mongoose';
 
 interface IAssignReviewResponse {
@@ -298,20 +298,17 @@ class AssignReviewController {
         // Continue execution even if emails fail
       }
 
-      // Generate AI review scores immediately using the placeholder service
-      const aiReviewId = reviews.find(
-        (r) => r.reviewType === ReviewType.AI
-      )?._id;
-
-      if (aiReviewId && proposal && proposal._id) {
-        await this.generateAIReview(aiReviewId.toString());
-        logger.info(`Generated AI review for proposal ${proposal._id}`);
+      // Dispatch AI review generation job to Agenda
+      if (proposal && proposal._id) {
+        await agenda.now('generate AI review', { proposalId: proposal._id.toString() });
+        logger.info(`Dispatched AI review job for proposal ${proposal._id} to Agenda`);
       } else {
-        logger.warn('Could not generate AI review due to missing information');
+        logger.warn('Could not dispatch AI review job due to missing proposal information');
       }
 
+
       logger.info(
-        `Assigned proposal ${proposalId} to ${eligibleReviewers.length} reviewers and AI`
+        `Assigned proposal ${proposalId} to ${eligibleReviewers.length} human reviewers and dispatched AI review job`
       );
 
       res.status(200).json({
@@ -330,16 +327,6 @@ class AssignReviewController {
       });
     }
   );
-
-  // Generate AI review using placeholder implementation
-  generateAIReview = async (reviewId: string): Promise<void> => {
-    await AIScoringController.generateAIReviewScores(reviewId);
-
-    const review = await Review.findById(reviewId);
-    if (review && review.proposal) {
-      logger.info(`Generated AI review for proposal ${review.proposal}`);
-    }
-  };
 
   // Check for overdue reviews and send reminder notifications
   checkOverdueReviews = asyncHandler(
