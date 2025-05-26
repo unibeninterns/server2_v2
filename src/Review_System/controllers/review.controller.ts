@@ -93,6 +93,9 @@ class ReviewController {
   );
 
   // Get a specific review by ID
+  // Updated getReviewById method in review.controller.ts
+
+  // Get a specific review by ID
   getReviewById = asyncHandler(
     async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
       const user = (req as ResearcherAuthenticatedRequest).user;
@@ -120,12 +123,110 @@ class ReviewController {
         throw new NotFoundError('Review not found or unauthorized');
       }
 
+      const responseData: any = { review };
+
+      // Check if this is a reconciliation review and include discrepancy information
+      if (review.reviewType === ReviewType.RECONCILIATION) {
+        try {
+          // Get the conflicting reviews (human and AI) for this proposal
+          const conflictingReviews = await Review.find({
+            proposal: review.proposal,
+            reviewType: { $ne: ReviewType.RECONCILIATION },
+            status: ReviewStatus.COMPLETED,
+          }).select('reviewType scores totalScore comments createdAt');
+
+          // Anonymize the reviews - don't reveal which is human vs AI
+          const anonymizedReviews = conflictingReviews.map(
+            (conflictReview, index) => ({
+              reviewId: `Review ${index + 1}`, // Anonymous identifier
+              scores: conflictReview.scores,
+              totalScore: conflictReview.totalScore,
+              comments: conflictReview.comments,
+              submittedAt: conflictReview.createdAt,
+              // Don't include reviewType or reviewer information
+            })
+          );
+
+          // Calculate discrepancy details
+          const discrepancyDetails = await this.generateDiscrepancyAnalysis(
+            review.proposal.toString()
+          );
+
+          responseData.discrepancyInfo = {
+            message:
+              'This proposal has been flagged for discrepancy resolution due to significant differences in review scores.',
+            conflictingReviews: anonymizedReviews,
+            discrepancyAnalysis: {
+              overallScoreRange: {
+                highest: discrepancyDetails.overallDiscrepancy.max,
+                lowest: discrepancyDetails.overallDiscrepancy.min,
+                average:
+                  Math.round(discrepancyDetails.overallDiscrepancy.avg * 10) /
+                  10,
+                percentageDifference:
+                  Math.round(
+                    discrepancyDetails.overallDiscrepancy.percentDifference * 10
+                  ) / 10,
+              },
+              criteriaWithHighestDiscrepancy:
+                discrepancyDetails.criteriaDiscrepancies
+                  .slice(0, 3) // Top 3 criteria with highest discrepancy
+                  .map((criteria: any) => ({
+                    criterion: this.formatCriteriaName(criteria.criterion),
+                    scores: criteria.scores,
+                    averageScore: Math.round(criteria.avg * 10) / 10,
+                    percentageDifference:
+                      Math.round(criteria.percentDifference * 10) / 10,
+                  })),
+            },
+            reconciliationGuidance: {
+              purpose:
+                'Your role is to provide an independent assessment that will help determine the final score for this proposal.',
+              // eslint-disable-next-line max-len
+              instruction:
+                'Please review the proposal thoroughly and provide your own independent scoring based on the evaluation criteria. Consider the existing reviews as reference points, but make your own judgment.',
+              weightage:
+                'Your reconciliation review will carry 60% weight, while the average of existing reviews will carry 40% weight in the final score calculation.',
+            },
+          };
+        } catch (error) {
+          logger.error(
+            `Error retrieving discrepancy information for review ${id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+          // Don't fail the entire request if discrepancy info can't be retrieved
+          responseData.discrepancyInfo = {
+            message:
+              'This is a reconciliation review, but detailed discrepancy information is currently unavailable.',
+          };
+        }
+      }
+
       res.status(200).json({
         success: true,
-        data: review,
+        data: responseData,
       });
     }
   );
+
+  // Helper method to format criteria names for better readability
+  private formatCriteriaName(criteriaKey: string): string {
+    const criteriaLabels: { [key: string]: string } = {
+      relevanceToNationalPriorities: 'Relevance to National Priorities',
+      originalityAndInnovation: 'Originality and Innovation',
+      clarityOfResearchProblem: 'Clarity of Research Problem',
+      methodology: 'Methodology',
+      literatureReview: 'Literature Review',
+      teamComposition: 'Team Composition',
+      feasibilityAndTimeline: 'Feasibility and Timeline',
+      budgetJustification: 'Budget Justification',
+      expectedOutcomes: 'Expected Outcomes',
+      sustainabilityAndScalability: 'Sustainability and Scalability',
+    };
+
+    return criteriaLabels[criteriaKey] || criteriaKey;
+  }
 
   // Get all reviews for a specific proposal (admin only)
   getProposalReviews = asyncHandler(

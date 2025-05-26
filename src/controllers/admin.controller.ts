@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 import User, { IUser } from '../model/user.model'; // Import IUser interface
 import Faculty from '../Proposal_Submission/models/faculty.model';
 import emailService from '../services/email.service'; // Import email service
+import Award, { AwardStatus } from '../Review_System/models/award.model';
 // Define a generic response interface for admin controller
 interface IAdminResponse {
   success: boolean;
