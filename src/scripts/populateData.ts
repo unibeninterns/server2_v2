@@ -166,7 +166,7 @@ if (require.main === module) {
     })
     .catch((error: unknown) => {
       if (error instanceof Error) {
-        logger.error('Population script failed:', error.message);
+        logger.error('Population script failed:', error);
       } else {
         logger.error('Population script failed with unknown error');
       }

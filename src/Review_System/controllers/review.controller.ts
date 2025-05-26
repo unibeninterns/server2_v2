@@ -93,9 +93,6 @@ class ReviewController {
   );
 
   // Get a specific review by ID
-  // Updated getReviewById method in review.controller.ts
-
-  // Get a specific review by ID
   getReviewById = asyncHandler(
     async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
       const user = (req as ResearcherAuthenticatedRequest).user;
@@ -182,8 +179,8 @@ class ReviewController {
             reconciliationGuidance: {
               purpose:
                 'Your role is to provide an independent assessment that will help determine the final score for this proposal.',
-              // eslint-disable-next-line max-len
               instruction:
+                // eslint-disable-next-line max-len
                 'Please review the proposal thoroughly and provide your own independent scoring based on the evaluation criteria. Consider the existing reviews as reference points, but make your own judgment.',
               weightage:
                 'Your reconciliation review will carry 60% weight, while the average of existing reviews will carry 40% weight in the final score calculation.',
