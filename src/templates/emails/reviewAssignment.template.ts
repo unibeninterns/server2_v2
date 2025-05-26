@@ -18,7 +18,7 @@ export const reviewAssignmentTemplate = (
     </div>
     
     <div class="content">
-        <p>You have been assigned to review a research proposal submitted by <strong>${researcherName}</strong> titled:</p>
+        <p>You have been assigned to review a research proposal titled:</p>
         
         <div class="proposal-title">"${proposalTitle}"</div>
         

@@ -65,7 +65,11 @@ class EmailService {
   }
 
   // Public method to send a custom email
-  async sendCustomEmail(to: string, subject: string, body: string): Promise<void> {
+  async sendCustomEmail(
+    to: string,
+    subject: string,
+    body: string
+  ): Promise<void> {
     try {
       await this.transporter.sendMail({
         from: this.emailFrom,
@@ -163,7 +167,7 @@ class EmailService {
     };
 
     const statusMessage = statusText[status] || status;
-    const proposalUrl = `${this.frontendUrl}/proposals/my-proposals`;
+    const proposalUrl = `${this.frontendUrl}/researchers/login`;
 
     try {
       await this.transporter.sendMail({
@@ -236,7 +240,7 @@ class EmailService {
     researcherName: string,
     dueDate: Date
   ): Promise<void> {
-    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+    const reviewUrl = `${this.frontendUrl}/reviewers/assignments`;
 
     try {
       await this.transporter.sendMail({
@@ -303,7 +307,7 @@ class EmailService {
     proposalTitle: string,
     dueDate: Date
   ): Promise<void> {
-    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+    const reviewUrl = `${this.frontendUrl}/reviewers/dashboard`;
 
     try {
       await this.transporter.sendMail({
@@ -331,7 +335,7 @@ class EmailService {
     reviewerName: string,
     proposalTitle: string
   ): Promise<void> {
-    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+    const reviewUrl = `${this.frontendUrl}/reviewers/dashboard`;
 
     try {
       await this.transporter.sendMail({
@@ -358,7 +362,7 @@ class EmailService {
     averageScore: number,
     scores: number[]
   ): Promise<void> {
-    const reviewUrl = `${this.frontendUrl}/reviewer/dashboard`;
+    const reviewUrl = `${this.frontendUrl}/reviewers/dashboard`;
 
     try {
       await this.transporter.sendMail({
