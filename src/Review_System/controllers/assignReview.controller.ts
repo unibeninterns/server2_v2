@@ -15,6 +15,7 @@ import emailService from '../../services/email.service';
 import { NotFoundError } from '../../utils/customErrors';
 import agenda from '../../config/agenda'; // Import the agenda instance
 import { Types } from 'mongoose';
+import { generateAIReviewForProposal } from './aiScoring.controller';
 
 interface IAssignReviewResponse {
   success: boolean;
@@ -328,16 +329,6 @@ class AssignReviewController {
         return review.save();
       });
 
-      // Create AI review assignment as well
-      const aiReview = new Review({
-        proposal: proposalId,
-        reviewer: null, // null for AI review
-        reviewType: ReviewType.AI,
-        status: ReviewStatus.IN_PROGRESS,
-        dueDate: new Date(), // AI review due immediately
-      });
-      reviewPromises.push(aiReview.save());
-
       // Execute all assignments
       const reviews = await Promise.all(reviewPromises);
 
@@ -363,10 +354,9 @@ class AssignReviewController {
         );
         // Continue execution even if emails fail
       }
-
       // Dispatch AI review generation job to Agenda
       if (proposal && proposal._id) {
-        await agenda.now('generate AI review', { proposalId: proposal._id.toString() });
+        await agenda.schedule('in 10 seconds', 'generate AI review', { proposalId: proposal._id.toString() });
         logger.info(`Dispatched AI review job for proposal ${proposal._id} to Agenda`);
       } else {
         logger.warn('Could not dispatch AI review job due to missing proposal information');
@@ -387,7 +377,6 @@ class AssignReviewController {
             email: r.email,
             faculty: r.facultyId,
           })),
-          aiReview: aiReview._id,
           dueDate,
         },
       });
