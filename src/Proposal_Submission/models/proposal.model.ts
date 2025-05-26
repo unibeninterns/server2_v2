@@ -39,7 +39,7 @@ export interface IProposal extends Document {
   cvFile?: string;
   docFile?: string;
   status: ProposalStatus;
-  reviewStatus?: 'pending' | 'reviewed' | 'accepted' | 'rejected'; // Added 'accepted' and 'rejected'
+  reviewStatus?: 'pending' | 'reviewed';
   finalScore?: number; // New field
   fundingAmount?: number; // New field
   feedbackComments?: string; // New field
@@ -161,7 +161,7 @@ const ProposalSchema: Schema<IProposal> = new Schema(
     },
     reviewStatus: {
       type: String,
-      enum: ['pending', 'reviewed', 'accepted', 'rejected'], // Added 'accepted' and 'rejected'
+      enum: ['pending', 'reviewed'],
       default: 'pending',
     },
     finalScore: { type: Number }, // New field

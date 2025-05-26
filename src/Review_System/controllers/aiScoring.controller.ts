@@ -1,18 +1,20 @@
-// src/Review_System/controllers/aiScoring.controller.ts
 import Review, {
   ReviewStatus,
   ReviewType,
   IScore,
 } from '../models/review.model';
-import Proposal from '../../Proposal_Submission/models/proposal.model';
+import Proposal, {
+  SubmitterType,
+} from '../../Proposal_Submission/models/proposal.model';
 import { NotFoundError } from '../../utils/customErrors';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service'; // Import emailService
 import { reviewProposal } from 'uniben-ai-proposal-review-cli'; // Import the reviewProposal function
-import { SubmitterType } from '../../Proposal_Submission/models/proposal.model'; // Import SubmitterType
 
 // Generate AI review for a proposal
-export const generateAIReviewForProposal = async (proposalId: string): Promise<{ success: boolean; message: string; data?: any }> => {
+export const generateAIReviewForProposal = async (
+  proposalId: string
+): Promise<{ success: boolean; message: string; data?: any }> => {
   try {
     // Check if proposal exists
     const proposal = await Proposal.findById(proposalId);
@@ -56,8 +58,12 @@ export const generateAIReviewForProposal = async (proposalId: string): Promise<{
       message: 'AI review generated successfully',
       data: completedAIReview,
     };
-  } catch (error: any) { // Catch errors during the process
-    logger.error(`Error generating AI review for proposal ${proposalId}:`, error);
+  } catch (error: any) {
+    // Catch errors during the process
+    logger.error(
+      `Error generating AI review for proposal ${proposalId}:`,
+      error
+    );
 
     const supportEmail = process.env.SUPPORT_EMAIL;
     if (supportEmail) {
@@ -73,12 +79,19 @@ Please investigate the server logs for more details.
       try {
         // Use the new sendCustomEmail method
         await emailService.sendCustomEmail(supportEmail, subject, body);
-        logger.info(`Sent AI review failure notification email to ${supportEmail} for proposal ${proposalId}`);
+        logger.info(
+          `Sent AI review failure notification email to ${supportEmail} for proposal ${proposalId}`
+        );
       } catch (emailError: any) {
-        logger.error(`Failed to send AI review failure notification email for proposal ${proposalId}:`, emailError);
+        logger.error(
+          `Failed to send AI review failure notification email for proposal ${proposalId}:`,
+          emailError
+        );
       }
     } else {
-      logger.warn(`SUPPORT_EMAIL not set. Could not send AI review failure notification for proposal ${proposalId}.`);
+      logger.warn(
+        `SUPPORT_EMAIL not set. Could not send AI review failure notification for proposal ${proposalId}.`
+      );
     }
 
     return {
@@ -156,12 +169,7 @@ ${proposal.estimatedBudget || ''}
 
   // Update review with mapped AI scores and comment
   review.scores = mappedScores;
-  review.comments = {
-    overall: evaluationResult.comment,
-    strengths: '', // Assuming the AI comment is a single overall comment
-    weaknesses: '', // Assuming the AI comment is a single overall comment
-    // You might need to adjust this based on the actual structure of evaluationResult.comment
-  };
+  review.comments = evaluationResult.comment;
   review.status = ReviewStatus.COMPLETED;
   review.completedAt = new Date();
 

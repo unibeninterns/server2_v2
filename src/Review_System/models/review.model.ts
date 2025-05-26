@@ -34,21 +34,7 @@ export interface IReview extends Document {
   reviewer: Types.ObjectId | null; // null for AI reviews
   reviewType: ReviewType;
   scores: IScore;
-  comments: {
-    relevanceToNationalPriorities?: string;
-    originalityAndInnovation?: string;
-    clarityOfResearchProblem?: string;
-    methodology?: string;
-    literatureReview?: string;
-    teamComposition?: string;
-    feasibilityAndTimeline?: string;
-    budgetJustification?: string;
-    expectedOutcomes?: string;
-    sustainabilityAndScalability?: string;
-    strengths?: string;
-    weaknesses?: string;
-    overall?: string;
-  };
+  comments: string;
   totalScore: number;
   status: ReviewStatus;
   dueDate: Date;
@@ -137,19 +123,8 @@ const ReviewSchema: Schema<IReview> = new Schema(
       },
     },
     comments: {
-      relevanceToNationalPriorities: String,
-      originalityAndInnovation: String,
-      clarityOfResearchProblem: String,
-      methodology: String,
-      literatureReview: String,
-      teamComposition: String,
-      feasibilityAndTimeline: String,
-      budgetJustification: String,
-      expectedOutcomes: String,
-      sustainabilityAndScalability: String,
-      strengths: String,
-      weaknesses: String,
-      overall: String,
+      type: String,
+      default: '',
     },
     totalScore: {
       type: Number,

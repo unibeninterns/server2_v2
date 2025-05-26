@@ -20,21 +20,7 @@ interface IReviewResponse {
 
 interface ISubmitReviewRequest {
   scores: IScore;
-  comments: {
-    relevanceToNationalPriorities?: string;
-    originalityAndInnovation?: string;
-    clarityOfResearchProblem?: string;
-    methodology?: string;
-    literatureReview?: string;
-    teamComposition?: string;
-    feasibilityAndTimeline?: string;
-    budgetJustification?: string;
-    expectedOutcomes?: string;
-    sustainabilityAndScalability?: string;
-    strengths?: string;
-    weaknesses?: string;
-    overall?: string;
-  };
+  comments: string;
 }
 
 interface ResearcherAuthenticatedRequest extends Request {
@@ -304,13 +290,10 @@ class ReviewController {
   generateDiscrepancyAnalysis = async (proposalId: string) => {
     try {
       // Execute the discrepancy analysis
-      const result = await reconciliationController.getDiscrepancyDetails(
-        proposalId
-      );
+      const result =
+        await reconciliationController.getDiscrepancyDetails(proposalId);
 
-      return (
-        result || { criteriaDiscrepancies: [], overallDiscrepancy: {} }
-      ); // The refactored method returns the data directly
+      return result || { criteriaDiscrepancies: [], overallDiscrepancy: {} }; // The refactored method returns the data directly
     } catch (error) {
       logger.error(
         `Error generating discrepancy analysis: ${
@@ -320,42 +303,6 @@ class ReviewController {
       return { criteriaDiscrepancies: [], overallDiscrepancy: {} };
     }
   };
-
-  getProposalForReview = asyncHandler(
-    async (req: Request, res: Response<IReviewResponse>): Promise<void> => {
-      const user = (req as ResearcherAuthenticatedRequest).user;
-      const { proposalId } = req.params;
-      const reviewerId = user.id;
-
-      // Check if reviewer is assigned to this proposal
-      const reviewAssignment = await Review.findOne({
-        proposal: proposalId,
-        reviewer: reviewerId,
-        reviewType: { $ne: 'ai' }, // Exclude AI reviews
-      });
-
-      if (!reviewAssignment) {
-        throw new NotFoundError('You are not assigned to review this proposal');
-      }
-
-      // Get proposal details
-      const proposal = await Proposal.findById(proposalId).select(
-        '-submitter -coInvestigators.name -cvFile'
-      ); // Exclude identifying information
-
-      if (!proposal) {
-        throw new NotFoundError('Proposal not found');
-      }
-
-      res.status(200).json({
-        success: true,
-        data: {
-          proposal,
-          reviewAssignment,
-        },
-      });
-    }
-  );
 
   // Dashboard statistics for reviewers
   getReviewerStatistics = asyncHandler(
@@ -426,7 +373,7 @@ class ReviewController {
       }
 
       if (comments) {
-        review.comments = { ...(review.comments || {}), ...comments };
+        review.comments = comments;
       }
 
       await review.save();

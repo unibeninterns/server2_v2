@@ -172,7 +172,7 @@ const authorizeModeration = async (
   }
 };
 
-// Rate limiting middleware for comments and public endpoints
+// Rate limiting middleware for public endpoints
 const rateLimiter = (limit: number, windowMs: number) => {
   const requests = new Map<string, number[]>();
 

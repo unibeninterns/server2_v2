@@ -22,21 +22,7 @@ interface IReviewResponse {
 
 interface ISubmitReviewRequest {
   scores: IScore;
-  comments: {
-    relevanceToNationalPriorities?: string;
-    originalityAndInnovation?: string;
-    clarityOfResearchProblem?: string;
-    methodology?: string;
-    literatureReview?: string;
-    teamComposition?: string;
-    feasibilityAndTimeline?: string;
-    budgetJustification?: string;
-    expectedOutcomes?: string;
-    sustainabilityAndScalability?: string;
-    strengths?: string;
-    weaknesses?: string;
-    overall?: string;
-  };
+  comments: string;
 }
 
 class getProposalController {

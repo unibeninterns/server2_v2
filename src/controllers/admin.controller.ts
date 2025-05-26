@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
-import Proposal from '../Proposal_Submission/models/proposal.model';
+import Proposal, {
+  ProposalStatus,
+} from '../Proposal_Submission/models/proposal.model';
 import { NotFoundError, UnauthorizedError } from '../utils/customErrors';
 import asyncHandler from '../utils/asyncHandler';
 import logger from '../utils/logger';
@@ -48,9 +50,6 @@ interface IStatisticsResponse {
   };
 }
 
-// Define ProposalDecision type based on frontend hint
-type ProposalDecision = 'accepted' | 'rejected' | 'pending'; // Example values, adjust as needed
-
 interface AdminAuthenticatedRequest extends Request {
   user: {
     id: string;
@@ -77,7 +76,7 @@ class AdminController {
       } = req.query;
 
       const query = {
-        reviewStatus: { $in: ['reviewed', 'reconciled'] }, // Proposals that have completed review or reconciliation
+        reviewStatus: { $in: ['reviewed'] }, // Proposals that have completed review or reconciliation
       };
 
       const sortObj: Record<string, 1 | -1> = {};
@@ -95,7 +94,8 @@ class AdminController {
         .limit(options.limit)
         .populate({
           path: 'submitter',
-          select: 'name email userType phoneNumber alternativeEmail faculty department',
+          select:
+            'name email userType phoneNumber alternativeEmail faculty department',
           populate: [
             { path: 'faculty', select: 'title' },
             { path: 'department', select: 'title' },
@@ -136,17 +136,19 @@ class AdminController {
       }
 
       if (status) {
-        proposal.reviewStatus = status; // Assuming 'status' maps to 'reviewStatus'
+        proposal.status = status;
       }
       // Optionally update other fields if provided, e.g., from finalizeProposalDecision
       if (finalScore !== undefined) proposal.finalScore = finalScore;
       if (fundingAmount !== undefined) proposal.fundingAmount = fundingAmount;
-      if (feedbackComments !== undefined) proposal.feedbackComments = feedbackComments;
-
+      if (feedbackComments !== undefined)
+        proposal.feedbackComments = feedbackComments;
 
       await proposal.save();
 
-      logger.info(`Admin ${user.id} updated status for proposal ${id} to ${status}`);
+      logger.info(
+        `Admin ${user.id} updated status for proposal ${id} to ${status}`
+      );
 
       res.status(200).json({
         success: true,
@@ -195,14 +197,14 @@ class AdminController {
       let emailSubject = 'Update on your Proposal Submission';
       let emailBody = `Dear ${submitterUser.name},\n\n`;
 
-      if (proposal.reviewStatus === 'accepted') {
+      if (proposal.status === ProposalStatus.APPROVED) {
         emailSubject = 'Congratulations! Your Proposal Has Been Accepted';
         emailBody += `We are pleased to inform you that your proposal "${proposal.projectTitle}" has been accepted.`;
         if (proposal.fundingAmount) {
           emailBody += ` You have been awarded a funding of NGN ${proposal.fundingAmount.toLocaleString()}.`;
         }
         emailBody += `\n\nFurther details will be communicated shortly.`;
-      } else if (proposal.reviewStatus === 'rejected') {
+      } else if (proposal.status === ProposalStatus.REJECTED) {
         emailSubject = 'Update on Your Proposal Submission: Decision Made';
         emailBody += `We regret to inform you that your proposal "${proposal.projectTitle}" was not selected for funding at this time.`;
         if (proposal.feedbackComments) {
@@ -210,14 +212,20 @@ class AdminController {
         }
         emailBody += `\n\nWe encourage you to continue your research efforts.`;
       } else {
-        emailBody += `This is an update regarding your proposal "${proposal.projectTitle}". Its current status is: ${proposal.reviewStatus}.`;
+        emailBody += `This is an update regarding your proposal "${proposal.projectTitle}". Its current status is: ${proposal.status}.`;
       }
 
       emailBody += `\n\nSincerely,\nThe University Research Grant Team`;
 
-      await emailService.sendCustomEmail(submitterUser.email, emailSubject, emailBody);
+      await emailService.sendCustomEmail(
+        submitterUser.email,
+        emailSubject,
+        emailBody
+      );
 
-      logger.info(`Admin ${user.id} notified applicant for proposal ${proposalId}`);
+      logger.info(
+        `Admin ${user.id} notified applicant for proposal ${proposalId}`
+      );
 
       res.status(200).json({
         success: true,
@@ -228,7 +236,8 @@ class AdminController {
 
   // Export decisions report
   exportDecisionsReport = asyncHandler(
-    async (req: Request, res: Response<string>): Promise<void> => { // Changed Response type to string
+    async (req: Request, res: Response<string>): Promise<void> => {
+      // Changed Response type to string
       const user = (req as AdminAuthenticatedRequest).user;
       if (user.role !== 'admin') {
         throw new UnauthorizedError(
@@ -238,7 +247,7 @@ class AdminController {
 
       // Fetch proposals that have a final decision (accepted/rejected)
       const proposals = await Proposal.find({
-        reviewStatus: { $in: ['accepted', 'rejected'] },
+        status: { $in: ['approved', 'rejected'] },
       }).populate({
         path: 'submitter',
         select: 'name email faculty department',
@@ -249,16 +258,19 @@ class AdminController {
       }); // Populate submitter details
 
       // Basic CSV generation (for demonstration)
-      let csvContent = 'Proposal Title,Submitter Name,Submitter Email,Faculty,Department,Decision,Final Score,Funding Amount,Feedback\n';
+      let csvContent =
+        'Proposal Title,Submitter Name,Submitter Email,Faculty,Department,Decision,Final Score,Funding Amount,Feedback\n';
 
-      proposals.forEach(proposal => {
+      proposals.forEach((proposal) => {
         const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
         const submitterName = submitterUser ? submitterUser.name : 'N/A';
         const submitterEmail = submitterUser ? submitterUser.email : 'N/A';
         const facultyName = (submitterUser.faculty as any)?.title || 'N/A'; // Access title from populated faculty
-        const departmentName = (submitterUser.department as any)?.title || 'N/A'; // Access title from populated department
+        const departmentName =
+          (submitterUser.department as any)?.title || 'N/A'; // Access title from populated department
 
-        csvContent += `"${proposal.projectTitle}","${submitterName}","${submitterEmail}","${facultyName}","${departmentName}","${proposal.reviewStatus || 'N/A'}",${proposal.finalScore || 'N/A'},${proposal.fundingAmount || 'N/A'},"${proposal.feedbackComments || 'N/A'}"\n`;
+        // eslint-disable-next-line max-len
+        csvContent += `"${proposal.projectTitle}","${submitterName}","${submitterEmail}","${facultyName}","${departmentName}","${proposal.status || 'N/A'}",${proposal.finalScore || 'N/A'},${proposal.fundingAmount || 'N/A'},"${proposal.feedbackComments || 'N/A'}"\n`;
       });
 
       res.header('Content-Type', 'text/csv');

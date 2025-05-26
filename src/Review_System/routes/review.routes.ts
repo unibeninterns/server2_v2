@@ -14,14 +14,6 @@ const reviewIdSchema = z.object({
   }),
 });
 
-const proposalIdSchema = z.object({
-  params: z.object({
-    proposalId: z
-      .string()
-      .regex(/^[0-9a-fA-F]{24}$/, 'Invalid proposal ID format'),
-  }),
-});
-
 const submitReviewSchema = z.object({
   params: z.object({
     id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid review ID format'),
@@ -39,21 +31,7 @@ const submitReviewSchema = z.object({
       expectedOutcomes: z.number().min(0).max(5),
       sustainabilityAndScalability: z.number().min(0).max(5),
     }),
-    comments: z.object({
-      relevanceToNationalPriorities: z.string().optional(),
-      originalityAndInnovation: z.string().optional(),
-      clarityOfResearchProblem: z.string().optional(),
-      methodology: z.string().optional(),
-      literatureReview: z.string().optional(),
-      teamComposition: z.string().optional(),
-      feasibilityAndTimeline: z.string().optional(),
-      budgetJustification: z.string().optional(),
-      expectedOutcomes: z.string().optional(),
-      sustainabilityAndScalability: z.string().optional(),
-      strengths: z.string().optional(),
-      weaknesses: z.string().optional(),
-      overall: z.string().optional(),
-    }),
+    comments: z.string(),
   }),
 });
 
@@ -76,23 +54,7 @@ const saveProgressSchema = z.object({
         sustainabilityAndScalability: z.number().min(0).max(5).optional(),
       })
       .optional(),
-    comments: z
-      .object({
-        relevanceToNationalPriorities: z.string().optional(),
-        originalityAndInnovation: z.string().optional(),
-        clarityOfResearchProblem: z.string().optional(),
-        methodology: z.string().optional(),
-        literatureReview: z.string().optional(),
-        teamComposition: z.string().optional(),
-        feasibilityAndTimeline: z.string().optional(),
-        budgetJustification: z.string().optional(),
-        expectedOutcomes: z.string().optional(),
-        sustainabilityAndScalability: z.string().optional(),
-        strengths: z.string().optional(),
-        weaknesses: z.string().optional(),
-        overall: z.string().optional(),
-      })
-      .optional(),
+    comments: z.string().optional(),
   }),
 });
 
@@ -112,12 +74,6 @@ router.get(
   authenticateReviewerToken,
   validateRequest(reviewIdSchema),
   reviewController.getReviewById
-);
-router.get(
-  '/proposal/:proposalId',
-  authenticateReviewerToken,
-  validateRequest(proposalIdSchema),
-  reviewController.getProposalForReview
 );
 router.post(
   '/:id/submit',

@@ -43,6 +43,7 @@ const validateEnv = (): void => {
     ADMIN_NAME: str(),
     ADMIN_EMAIL: email(),
     ADMIN_PASSWORD: str(),
+    SUPPORT_EMAIL: email(),
   });
 };
 
