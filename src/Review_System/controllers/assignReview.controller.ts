@@ -75,6 +75,8 @@ class AssignReviewController {
         return;
       }
 
+      logger.info(`Proposal ${proposalId} submitter faculty: ${JSON.stringify(submitterFaculty)}`);
+
       // Determine appropriate reviewer faculty based on review clusters
       const clusterMap = {
         // Cluster 1
@@ -157,16 +159,67 @@ class AssignReviewController {
 
       type FacultyTitle = keyof typeof clusterMap;
 
-      const submitterFacultyTitle: FacultyTitle =
-        typeof submitterFaculty === 'string'
+      // Define a map from keywords to canonical FacultyTitle
+      const keywordToFacultyMap: { [key: string]: FacultyTitle } = {
+        "Agriculture": "Faculty of Agriculture",
+        "Life Sciences": "Faculty of Life Sciences",
+        "Veterinary Medicine": "Faculty of Veterinary Medicine",
+        "Pharmacy": "Faculty of Pharmacy",
+        "Dentistry": "Faculty of Dentistry",
+        "Medicine": "Faculty of Medicine",
+        "Basic Medical Sciences": "Faculty of Basic Medical Sciences",
+        "Management Sciences": "Faculty of Management Sciences",
+        "Education": "Faculty of Education",
+        "Social Sciences": "Faculty of Social Sciences",
+        "Vocational Education": "Faculty of Vocational Education",
+        "Law": "Faculty of Law",
+        "Arts": "Faculty of Arts",
+        "Institute of Education": "Institute of Education",
+        "Engineering": "Faculty of Engineering",
+        "Physical Sciences": "Faculty of Physical Sciences",
+        "Environmental Sciences": "Faculty of Environmental Sciences",
+      };
+
+      const rawFacultyTitle = typeof submitterFaculty === 'string'
           ? submitterFaculty
           : (submitterFaculty as any).title;
 
-      const eligibleFaculties = clusterMap[submitterFacultyTitle] || [];
+      // Remove parenthetical codes and trim
+      const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
+
+      logger.info(`Cleaned faculty title: ${cleanedFacultyTitle}`);
+
+      let canonicalFacultyTitle: FacultyTitle | undefined;
+
+      // Find the canonical faculty title using keywords
+      for (const keyword in keywordToFacultyMap) {
+        if (cleanedFacultyTitle.includes(keyword)) {
+          canonicalFacultyTitle = keywordToFacultyMap[keyword];
+          break;
+        }
+      }
+
+      if (!canonicalFacultyTitle) {
+        logger.error(
+          `No canonical faculty title found for cleaned title: ${cleanedFacultyTitle}`
+        );
+        res.status(400).json({
+          success: false,
+          message:
+            "Cannot assign reviewers: Could not determine a matching faculty for the proposal's cluster.",
+        });
+        return;
+      }
+
+      logger.info(`Canonical faculty title determined: ${canonicalFacultyTitle}`);
+
+      const eligibleFaculties = clusterMap[canonicalFacultyTitle] || [];
+
+      logger.info(`Eligible faculties from cluster map: ${JSON.stringify(eligibleFaculties)}`);
 
       if (eligibleFaculties.length === 0) {
         logger.error(
-          `No eligible faculties found for ${submitterFacultyTitle}`
+          `No eligible faculties found for ${canonicalFacultyTitle}`
         );
         res.status(400).json({
           success: false,
@@ -178,11 +231,22 @@ class AssignReviewController {
 
       // Find reviewers from eligible faculties with the least current assignments
 
+      // Convert eligibleFaculties to a list of keywords for flexible matching
+      const eligibleFacultyKeywords = eligibleFaculties.map(title => title.split('(')[0].trim());
+
+      // Build a regex to match any of the keywords in the Faculty title
+      const regexPattern = eligibleFacultyKeywords.map(keyword => `.*${keyword}.*`).join('|');
+      const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
+
       const facultyIds = await Faculty.find({
-        title: { $in: eligibleFaculties },
+        title: { $regex: facultyTitleRegex },
       }).select('_id'); // Get ObjectIds instead of codes
 
+      logger.info(`Faculty IDs found for eligible faculties: ${JSON.stringify(facultyIds)}`);
+
       const facultyIdList = facultyIds.map((f) => f._id);
+
+      logger.info(`Faculty ID list for matching: ${JSON.stringify(facultyIdList)}`);
 
       // Find eligible reviewers and sort by current workload
       const eligibleReviewers = await User.aggregate([
@@ -235,7 +299,9 @@ class AssignReviewController {
         },
       ]);
 
-      if (eligibleReviewers.length < 2) {
+      logger.info(`Eligible reviewers found: ${JSON.stringify(eligibleReviewers)}`);
+
+      if (eligibleReviewers.length < 1) {
         logger.error(
           `Not enough eligible reviewers found for proposal ${proposalId}`
         );
