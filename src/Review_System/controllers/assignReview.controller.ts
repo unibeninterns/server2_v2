@@ -356,7 +356,7 @@ class AssignReviewController {
       }
       // Dispatch AI review generation job to Agenda
       if (proposal && proposal._id) {
-        await agenda.schedule('in 10 seconds', 'generate AI review', { proposalId: proposal._id.toString() });
+        await agenda.now('generate AI review', { proposalId: proposal._id.toString() });
         logger.info(`Dispatched AI review job for proposal ${proposal._id} to Agenda`);
       } else {
         logger.warn('Could not dispatch AI review job due to missing proposal information');
