@@ -199,7 +199,7 @@ class AdminController {
 
       if (proposal.status === ProposalStatus.APPROVED) {
         emailSubject = 'Congratulations! Your Proposal Has Been Accepted';
-        emailBody += `We are pleased to inform you that your proposal "${proposal.projectTitle}" has been accepted.`;
+        emailBody += `We are pleased to inform you that your proposal "${proposal.projectTitle}" has been approved.`;
         if (proposal.fundingAmount) {
           emailBody += ` You have been awarded a funding of NGN ${proposal.fundingAmount.toLocaleString()}.`;
         }
@@ -245,7 +245,7 @@ class AdminController {
         );
       }
 
-      // Fetch proposals that have a final decision (accepted/rejected)
+      // Fetch proposals that have a final decision (approved/rejected)
       const proposals = await Proposal.find({
         status: { $in: ['approved', 'rejected'] },
       }).populate({
