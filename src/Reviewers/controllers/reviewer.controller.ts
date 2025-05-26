@@ -256,7 +256,7 @@ class ReviewerController {
     }
   );
 
-  // Get all reviewers with pagination and filtering
+  // Get all reviewers with pagination, filtering, and statistics
   getAllReviewers = asyncHandler(
     async (req: Request, res: Response<IReviewerResponse>): Promise<void> => {
       const user = (req as AuthenticatedRequest).user;
@@ -306,6 +306,37 @@ class ReviewerController {
 
       const totalReviewers = await User.countDocuments(query);
 
+      // Get statistics for each reviewer
+      const reviewersWithStats = await Promise.all(
+        reviewers.map(async (reviewer) => {
+          // Get assigned reviews (all reviews assigned to this reviewer)
+          const assignedReviews = await Review.countDocuments({
+            reviewer: reviewer._id,
+          });
+
+          // Get completed reviews
+          const completedReviews = await Review.countDocuments({
+            reviewer: reviewer._id,
+            status: ReviewStatus.COMPLETED,
+          });
+
+          // Calculate completion rate
+          const completionRate =
+            assignedReviews > 0
+              ? Math.round((completedReviews / assignedReviews) * 100)
+              : 0;
+
+          return {
+            ...reviewer.toObject(),
+            statistics: {
+              assigned: assignedReviews,
+              completed: completedReviews,
+              completionRate,
+            },
+          };
+        })
+      );
+
       logger.info(`Admin ${user._id} retrieved reviewers list`);
 
       res.status(200).json({
@@ -313,7 +344,7 @@ class ReviewerController {
         count: reviewers.length,
         totalPages: Math.ceil(totalReviewers / options.limit),
         currentPage: options.page,
-        data: reviewers,
+        data: reviewersWithStats,
       });
     }
   );
