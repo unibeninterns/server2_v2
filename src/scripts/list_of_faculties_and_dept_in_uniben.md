@@ -11,9 +11,6 @@ FOW Department of Forestry and Wildlife (FOW)
 FWM Department of Forest Resources and Wildlife Management (FWM)
 SOS Department of Soil Science (SOS)
 
-AFRIMAL AFRICAN INSTITUTE OF MANAGEMENT AND LEADERSHIP (AFRIMAL)
-AIML AFRIMAL (AIML)
-
 ART Faculty of Arts (ART)
 ENL Department of English and Literature (ENL)
 FAA Department of Fine and Applied Art (FAA)
@@ -48,7 +45,6 @@ DCBT CBT Practice Categories (DCBT)
 CED Centre for Entrepreneurship Development (CED)
 CED Centre for Entrepreneurship Development (CED)
 
-CERHI Centre of Excellence in Reproductive Health Innovation (CERHI)
 CERTS CERTIFICATES (CERTS)
 CHT Department of Community Health (CHT)
 ECN Department of Economics (ECN)
@@ -107,6 +103,10 @@ HEK Department of Health Environmental Education and Human Kinetics (HEK)
 HKS Department of Human Kinetics and Sports Science (HKS)
 HSE Department of Health, Safety and Environmental Education (HSE)
 VTE Department of Vocational & Technical Education (VTE)
+AED Department of Agricultural Science Education and Fine and Applied Arts Education (AED)
+BED Department of Business Education (BED)
+HEE Department of Home Economics, Hospitality and Tourism Education (HEE)
+ITE Department of Industrial and Technical Education (ITE)
 
 ENG Faculty of Engineering (ENG)
 AGE Department of Agricultural Engineering (AGE)
@@ -137,31 +137,11 @@ GEM Department of Geomatics (GEM)
 QSV Department of Quantity Surveying (QSV)
 URP Department of Urban and Regional Planning (URP)
 
-FCETA Federal College of Education (Technical) Asaba (FCETA)
-SOBUSE School of Business Education (SOBUSE)
-SOSCNE School of Science Education (SOSCNE)
-SOTECH School of Technical Education (SOTECH)
-SOVOC School of Vocational Education (SOVOC)
-
-FCETAL Federal College of Education (Technical) Akoka (FCETAL)
-ESMA Department of Educational Studies and Management (ESMA)
-PCSA Department of Psychology and Curriculum Studies (PCSA)
-VTEA Department of Vocational And Technical Education (VTEA)
-
 FLC Fench Language Centre (FLC)
 FLC Fench Language Centre (FLC)
 
 GST Office for General Studies (GST)
 GST Department of General Studies (GST)
-
-ICH Institute of Child Health (ICH)
-CH Institute of Child Health (CH)
-
-ICSAN Institute of Chartered Secretaries and Administrators of Nigeria (ICSAN)
-
-INE Institute of Education (INE)
-
-INP Institute of Public Administration and Health Services Management (IPAHSM) (INP)
 
 JUPEB Joint Universities Preliminary Examinations Board (JUPEB)
 AGR_JUP Agriculture-Subjects Combination (AGR_JUP)
@@ -215,6 +195,7 @@ HAE Department of Haematology (HAE)
 MED Department of Medicine (MED)
 MEH Department of Mental Health (MEH)
 SUR Department of Surgery (SUR)
+CERHI Department of Excellence in Reproductive Health Innovation (CERHI)
 
 MGS Faculty of Management Sciences (MGS)
 ACC Department of Accounting (ACC)
@@ -271,15 +252,10 @@ POL Department of Political Science (POL)
 PUB Department of Public Administration (PUB)
 SAA Department of Sociology & Anthropology (SAA)
 SWK Department of Social Work (SWK)
+INP Institute of Public Administration and Health Services Management (IPAHSM) (INP)
 
 UBITS Office for University of Benin Industrial Training and Graded Reports Scheme (UBITS)
 UBITS Department of University of Benin Industrial Training Scheme (UBITS)
 
 VNM Faculty of Veterinary Medicine (VNM)
 VNM Department of Veterinary Medicine (VNM)
-
-VTE Faculty of Vocational and Technical Education (VTE)
-AED Department of Agricultural Science Education and Fine and Applied Arts Education (AED)
-BED Department of Business Education (BED)
-HEE Department of Home Economics, Hospitality and Tourism Education (HEE)
-ITE Department of Industrial and Technical Education (ITE)

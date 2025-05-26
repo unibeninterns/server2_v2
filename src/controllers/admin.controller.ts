@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import Proposal, {
   ProposalStatus,
@@ -138,6 +139,32 @@ class AdminController {
 
       if (status) {
         proposal.status = status;
+
+        if (proposal.status === ProposalStatus.APPROVED) {
+          // Find and update the award status
+          await Award.findOneAndUpdate(
+            { proposal: proposal._id },
+            {
+              status: AwardStatus.APPROVED,
+              approvedBy: user.id,
+              approvedAt: new Date(),
+              feedbackComments:
+                feedbackComments || 'Your proposal has been approved.',
+            },
+            { new: true }
+          );
+        } else if (proposal.status === ProposalStatus.REJECTED) {
+          // Update award status to declined
+          await Award.findOneAndUpdate(
+            { proposal: proposal._id },
+            {
+              status: AwardStatus.DECLINED,
+              feedbackComments:
+                feedbackComments || 'Your proposal has been declined.',
+            },
+            { new: true }
+          );
+        }
       }
       // Optionally update other fields if provided, e.g., from finalizeProposalDecision
       if (finalScore !== undefined) proposal.finalScore = finalScore;
