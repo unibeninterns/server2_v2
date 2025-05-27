@@ -72,6 +72,14 @@ router.get(
   adminController.exportDecisionsReport
 );
 
+// Toggle proposal archive status
+router.patch(
+  '/proposals/:id/archive',
+  authenticateAdminToken,
+  adminRateLimiter,
+  adminController.toggleProposalArchiveStatus
+);
+
 router.use('/researcher', researcherManagementRoutes);
 router.use('/', assignReviewRoutes);
 
