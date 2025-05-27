@@ -1,5 +1,5 @@
 // Get all reviews for a specific proposal (admin only)
-getProposalReviews = asyncHandler(
+getAllProposalReviews = asyncHandler(
   async (
     req: GetProposalReviewRequest,
     res: Response<IReviewResponse>
@@ -20,6 +20,7 @@ getProposalReviews = asyncHandler(
   }
 );
 
+// To be used as context
 // Get all proposals with pagination and filtering
 getAllProposals = asyncHandler(
   async (req: Request, res: Response<IProposalResponse>): Promise<void> => {
@@ -130,13 +131,24 @@ getAllProposals = asyncHandler(
     }
   }
 );
+// The way imtegrating APi's looks like in my Api.ts file in the frontend, to be used as context so you'll send something following similar structure for the controller(S) you create
 
-// If my task will require two controllers or just one, evaluate which is better, One to get all proposal that have been have been put under or already reviewed or in reconcilaition
-// and it will be ordered by the latest always at the top, meaning I'm just creating a controller(s) so I can be able to get all scores and comment for a proposal,
-// if a proposal is assigned to a reviewer the AI score will be processed automatically,
-// So when a proposal is under review it already has a score, when It is reviewed by a human it then has two scores which I want to view,
-// if it flagged for discrepancy and it is reviewed by a reconciler, it will have three scores.
-// Now If it is flagged for discrepancy I want a seperate functionality that will allow me see the proposals flagged for discrepancy only,
-//  meaning like a filter for the frontend where there will be an all proposals page where you see all I have described above
-// showing all review scores for the respective proposals only when you click on any proposal and then the discrepancy filter that only shows list of proposals with discrepancy
-//  and lets you view all the scores and comments including the discrepancy own when clicked just like the all proposals reviews page.
+export const getProposals = async (params = {}) => {
+  try {
+    const response = await api.get('/admin/proposals', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching proposals:', error);
+    throw error;
+  }
+};
+
+export const getProposalById = async (id: string) => {
+  try {
+    const response = await api.get(`/admin/proposals/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching proposal with ID ${id}:`, error);
+    throw error;
+  }
+};
