@@ -4,8 +4,6 @@ TODO: Create a front-end All reviews section using the controller above for the 
 
 TODO: The way the proposal is displayed in the reviewer dashboard for review, I mean the text formatting is not looking nice like in the admin proposal section where if you view a proposal the text is structred well
 
-TODO: Remove all sensitive console.logs from the frontend.
-
 
 TODO: Fix admin reviewer section issue it's not display the assigned proposal reviews for reviewers just their statistics.
 
