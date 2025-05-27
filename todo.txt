@@ -6,7 +6,6 @@ TODO: The way the proposal is displayed in the reviewer dashboard for review, I 
 
 TODO: Remove all sensitive console.logs from the frontend.
 
-TODO: use the email template format I already have for those extra emails you added.
 
 TODO: Fix admin reviewer section issue it's not display the assigned proposal reviews for reviewers just their statistics.
 

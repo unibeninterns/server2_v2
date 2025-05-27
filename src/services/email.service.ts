@@ -1,7 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import logger from '../utils/logger';
 import validateEnv from '../utils/validateEnv';
-import { SubmitterType } from '../Proposal_Submission/models/proposal.model';
+import { SubmitterType, ProposalStatus } from '../Proposal_Submission/models/proposal.model';
 import {
   reviewReminderTemplate,
   overdueReviewTemplate,
@@ -14,15 +14,12 @@ import {
   reviewerCredentialsTemplate,
   invitationTemplate,
   credentialsTemplate,
+  aiReviewFailureTemplate,
+  proposalStatusUpdateTemplate,
+  proposalArchiveNotificationTemplate,
 } from '../templates/emails';
 
 validateEnv();
-
-type ProposalStatus =
-  | 'approved'
-  | 'rejected'
-  | 'revision_requested'
-  | 'under_review';
 
 class EmailService {
   private transporter: Transporter;
@@ -64,26 +61,85 @@ class EmailService {
     return submitterType === 'staff' ? 'Staff Member' : "Master's Student";
   }
 
-  // Public method to send a custom email
-  async sendCustomEmail(
+  private getProposalStatusUpdateSubject(
+    status: ProposalStatus,
+    proposalTitle: string
+  ): string {
+    if (status === ProposalStatus.APPROVED) {
+      return `Congratulations! Your Proposal "${proposalTitle}" Has Been Accepted`;
+    } else if (status === ProposalStatus.REJECTED) {
+      return `Update on Your Proposal Submission: Decision Made for "${proposalTitle}"`;
+    } else {
+      return `Update on your Proposal Submission: ${proposalTitle}`;
+    }
+  }
+
+  async sendAiReviewFailureEmail(
     to: string,
-    subject: string,
-    body: string
+    proposalId: string,
+    errorMessage: string
   ): Promise<void> {
     try {
       await this.transporter.sendMail({
         from: this.emailFrom,
         to: to,
-        subject: subject,
-        html: body, // Assuming the body is HTML or plain text
+        subject: `AI Review Generation Failed for Proposal ${proposalId}`,
+        html: aiReviewFailureTemplate(proposalId, errorMessage),
       });
-      logger.info(`Custom email sent to: ${to} with subject: ${subject}`);
+      logger.info(`AI review failure email sent to: ${to} for proposal ${proposalId}`);
     } catch (error) {
       logger.error(
-        `Failed to send custom email to ${to} with subject ${subject}:`,
+        `Failed to send AI review failure email to ${to} for proposal ${proposalId}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
-      throw error; // Re-throw the error so the caller can handle it
+      throw error;
+    }
+  }
+
+  async sendProposalStatusUpdateEmail(
+    to: string,
+    name: string,
+    projectTitle: string,
+    status: ProposalStatus,
+    fundingAmount?: number,
+    feedbackComments?: string
+  ): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: to,
+        subject: this.getProposalStatusUpdateSubject(status, projectTitle),
+        html: proposalStatusUpdateTemplate(name, projectTitle, status, fundingAmount, feedbackComments),
+      });
+      logger.info(`Proposal status update email sent to: ${to} for proposal ${projectTitle}`);
+    } catch (error) {
+      logger.error(
+        `Failed to send proposal status update email to ${to} for proposal ${projectTitle}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw error;
+    }
+  }
+
+  async sendProposalArchiveNotificationEmail(
+    to: string,
+    name: string,
+    projectTitle: string
+  ): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: to,
+        subject: `Your Proposal "${projectTitle}" Has Been Archived`,
+        html: proposalArchiveNotificationTemplate(name, projectTitle),
+      });
+      logger.info(`Proposal archive notification email sent to: ${to} for proposal ${projectTitle}`);
+    } catch (error) {
+      logger.error(
+        `Failed to send proposal archive notification email to ${to} for proposal ${projectTitle}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw error;
     }
   }
 
@@ -148,43 +204,6 @@ class EmailService {
     } catch (error) {
       logger.error(
         'Failed to send submission confirmation email:',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-    }
-  }
-
-  async sendProposalStatusUpdateEmail(
-    email: string,
-    researcher: string,
-    proposalTitle: string,
-    status: ProposalStatus
-  ): Promise<void> {
-    const statusText: Record<ProposalStatus, string> = {
-      approved: 'approved',
-      rejected: 'rejected',
-      revision_requested: 'returned for revision',
-      under_review: 'under review',
-    };
-
-    const statusMessage = statusText[status] || status;
-    const proposalUrl = `${this.frontendUrl}/researchers/login`;
-
-    try {
-      await this.transporter.sendMail({
-        from: this.emailFrom,
-        to: email,
-        subject: `Research Proposal Status Update: ${proposalTitle}`,
-        html: statusUpdateTemplate(
-          researcher,
-          proposalTitle,
-          statusMessage,
-          proposalUrl
-        ),
-      });
-      logger.info(`Proposal status update email sent to ${email}`);
-    } catch (error) {
-      logger.error(
-        'Failed to send proposal status update email:',
         error instanceof Error ? error.message : 'Unknown error'
       );
     }

@@ -218,38 +218,17 @@ class AdminController {
 
       const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
 
-      if (!submitterUser.email) {
-        throw new Error('Submitter email not found for notification');
+      if (!submitterUser.email || !proposal.projectTitle) {
+        throw new Error('Submitter email or proposal title not found for notification');
       }
 
-      // Determine email content based on proposal status
-      let emailSubject = 'Update on your Proposal Submission';
-      let emailBody = `Dear ${submitterUser.name},\n\n`;
-
-      if (proposal.status === ProposalStatus.APPROVED) {
-        emailSubject = 'Congratulations! Your Proposal Has Been Accepted';
-        emailBody += `We are pleased to inform you that your proposal "${proposal.projectTitle}" has been approved.`;
-        if (proposal.fundingAmount) {
-          emailBody += ` You have been awarded a funding of NGN ${proposal.fundingAmount.toLocaleString()}.`;
-        }
-        emailBody += `\n\nFurther details will be communicated shortly.`;
-      } else if (proposal.status === ProposalStatus.REJECTED) {
-        emailSubject = 'Update on Your Proposal Submission: Decision Made';
-        emailBody += `We regret to inform you that your proposal "${proposal.projectTitle}" was not selected for funding at this time.`;
-        if (proposal.feedbackComments) {
-          emailBody += `\n\nFeedback: ${proposal.feedbackComments}`;
-        }
-        emailBody += `\n\nWe encourage you to continue your research efforts.`;
-      } else {
-        emailBody += `This is an update regarding your proposal "${proposal.projectTitle}". Its current status is: ${proposal.status}.`;
-      }
-
-      emailBody += `\n\nSincerely,\nThe University Research Grant Team`;
-
-      await emailService.sendCustomEmail(
+      await emailService.sendProposalStatusUpdateEmail(
         submitterUser.email,
-        emailSubject,
-        emailBody
+        submitterUser.name,
+        proposal.projectTitle as string, // Explicitly cast to string
+        proposal.status,
+        proposal.fundingAmount,
+        proposal.feedbackComments
       );
 
       logger.info(
@@ -537,17 +516,15 @@ class AdminController {
       if (isArchived && !previousIsArchivedStatus) {
         const submitterUser = proposal.submitter as unknown as IUser;
         if (submitterUser && submitterUser.email && proposal.projectTitle) {
-          const subject = `Your Proposal "${proposal.projectTitle}" Has Been Archived`;
-          const body = `Dear ${submitterUser.name},\n\n` +
-                       `We wish to inform you that your proposal titled "${proposal.projectTitle}" has been archived.\n\n` +
-                       `This means it will no longer appear in your active proposals list, but remains accessible for record-keeping.\n\n` +
-                       `If you have any questions, please contact the administration.\n\n` +
-                       `Sincerely,\nDRID`;
           try {
-            await emailService.sendCustomEmail(submitterUser.email, subject, body);
+            await emailService.sendProposalArchiveNotificationEmail(
+              submitterUser.email,
+              submitterUser.name,
+              proposal.projectTitle as string // Explicitly cast to string
+            );
             logger.info(`Sent archive notification email to ${submitterUser.email} for proposal ${proposal._id}`);
-          } catch (emailError: any) {
-            logger.error(`Failed to send archive notification email for proposal ${proposal._id}: ${emailError.message}`);
+          } catch (error: any) {
+            logger.error(`Failed to send archive notification email for proposal ${proposal._id}: ${error.message}`);
           }
         } else {
           logger.warn(`Could not send archive notification for proposal ${proposal._id}: Missing submitter info or project title.`);

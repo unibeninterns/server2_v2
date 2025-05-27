@@ -10,10 +10,16 @@ import { reviewerInvitationTemplate } from './reviewerInvitation.template';
 import { reviewerCredentialsTemplate } from './reviewerCredentials.template';
 import { invitationTemplate } from './invitation.template';
 import { credentialsTemplate } from './credentials.template';
+import { aiReviewFailureTemplate } from './aiReviewFailure.template';
+import { proposalStatusUpdateTemplate } from './proposalStatusUpdate.template';
+import { proposalArchiveNotificationTemplate } from './proposalArchiveNotification.template';
 
 // Export all templates
 export {
   reviewReminderTemplate,
+  aiReviewFailureTemplate,
+  proposalStatusUpdateTemplate,
+  proposalArchiveNotificationTemplate,
   overdueReviewTemplate,
   reconciliationAssignmentTemplate,
   reviewAssignmentTemplate,

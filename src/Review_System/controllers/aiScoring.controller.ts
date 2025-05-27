@@ -67,18 +67,12 @@ export const generateAIReviewForProposal = async (
 
     const supportEmail = process.env.SUPPORT_EMAIL;
     if (supportEmail) {
-      const subject = `AI Review Generation Failed for Proposal ${proposalId}`;
-      const body = `
-An error occurred while generating the AI review for proposal ID: ${proposalId}.
-
-Error Details:
-${error.message || 'No error message available'}
-
-Please investigate the server logs for more details.
-`;
       try {
-        // Use the new sendCustomEmail method
-        await emailService.sendCustomEmail(supportEmail, subject, body);
+        await emailService.sendAiReviewFailureEmail(
+          supportEmail,
+          proposalId,
+          error.message || 'No error message available'
+        );
         logger.info(
           `Sent AI review failure notification email to ${supportEmail} for proposal ${proposalId}`
         );
