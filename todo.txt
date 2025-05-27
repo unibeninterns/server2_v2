@@ -10,6 +10,7 @@ TODO: Firstly find all researcher affected by the School of Dentistry update to 
 
 TODO: Next is to craft and send a professional mail to them all using Drid official mail telling them to resend the faculty and department they submitted the proposal with.
 
+FIXME : Proposal page on frontend is not displaying needs revision when a proposal is flagged for discrepancy. 
 
 //Future
 TODO: Parse the docfile from masters students so that neccesary fields can be displayed in text format not in a document format for reviewers if they are assigned a masters proposal to review.

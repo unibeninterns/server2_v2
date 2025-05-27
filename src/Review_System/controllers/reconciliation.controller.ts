@@ -10,6 +10,107 @@ import mongoose, { Document } from 'mongoose';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 
 class ReconciliationController {
+  // Define the cluster map as a class property
+  private clusterMap = {
+    // Cluster 1
+    'Faculty of Agriculture': [
+      'Faculty of Life Sciences',
+      'Faculty of Veterinary Medicine',
+    ],
+    'Faculty of Life Sciences': [
+      'Faculty of Agriculture',
+      'Faculty of Veterinary Medicine',
+    ],
+    'Faculty of Veterinary Medicine': [
+      'Faculty of Agriculture',
+      'Faculty of Life Sciences',
+    ],
+
+    // Cluster 2
+    'Faculty of Pharmacy': [
+      'Faculty of Dentistry',
+      'Faculty of Medicine',
+      'Faculty of Basic Medical Sciences',
+    ],
+    'Faculty of Dentistry': [
+      'Faculty of Pharmacy',
+      'Faculty of Medicine',
+      'Faculty of Basic Medical Sciences',
+    ],
+    'Faculty of Medicine': [
+      'Faculty of Pharmacy',
+      'Faculty of Dentistry',
+      'Faculty of Basic Medical Sciences',
+    ],
+    'Faculty of Basic Medical Sciences': [
+      'Faculty of Pharmacy',
+      'Faculty of Dentistry',
+      'Faculty of Medicine',
+    ],
+
+    // Cluster 3
+    'Faculty of Management Sciences': [
+      'Faculty of Education',
+      'Faculty of Social Sciences',
+      'Faculty of Vocational Education',
+    ],
+    'Faculty of Education': [
+      'Faculty of Management Sciences',
+      'Faculty of Social Sciences',
+      'Faculty of Vocational Education',
+    ],
+    'Faculty of Social Sciences': [
+      'Faculty of Management Sciences',
+      'Faculty of Education',
+      'Faculty of Vocational Education',
+    ],
+    'Faculty of Vocational Education': [
+      'Faculty of Management Sciences',
+      'Faculty of Education',
+      'Faculty of Social Sciences',
+    ],
+
+    // Cluster 4
+    'Faculty of Law': ['Faculty of Arts', 'Institute of Education'],
+    'Faculty of Arts': ['Faculty of Law', 'Institute of Education'],
+    'Institute of Education': ['Faculty of Law', 'Faculty of Arts'],
+
+    // Cluster 5
+    'Faculty of Engineering': [
+      'Faculty of Physical Sciences',
+      'Faculty of Environmental Sciences',
+    ],
+    'Faculty of Physical Sciences': [
+      'Faculty of Engineering',
+      'Faculty of Environmental Sciences',
+    ],
+    'Faculty of Environmental Sciences': [
+      'Faculty of Engineering',
+      'Faculty of Physical Sciences',
+    ],
+  };
+
+  // Define a map from keywords to canonical FacultyTitle
+  private keywordToFacultyMap: { [key: string]: keyof typeof ReconciliationController.prototype.clusterMap } = {
+    "Agriculture": "Faculty of Agriculture",
+    "Life Sciences": "Faculty of Life Sciences",
+    "Veterinary Medicine": "Faculty of Veterinary Medicine",
+    "Pharmacy": "Faculty of Pharmacy",
+    "Dentistry": "Faculty of Dentistry",
+    "Medicine": "Faculty of Medicine",
+    "Basic Medical Sciences": "Faculty of Basic Medical Sciences",
+    "Management Sciences": "Faculty of Management Sciences",
+    "Education": "Faculty of Education",
+    "Social Sciences": "Faculty of Social Sciences",
+    "Vocational Education": "Faculty of Vocational Education",
+    "Law": "Faculty of Law",
+    "Arts": "Faculty of Arts",
+    "Institute of Education": "Institute of Education",
+    "Engineering": "Faculty of Engineering",
+    "Physical Sciences": "Faculty of Physical Sciences",
+    "Environmental Sciences": "Faculty of Environmental Sciences",
+  };
+
   // Check for discrepancies between reviews and assign reconciliation if needed
   public async checkReviewDiscrepancies(proposalId: string): Promise<{
     hasDiscrepancy: boolean;
@@ -26,7 +127,7 @@ class ReconciliationController {
     });
 
     // Need at least 2 reviews (typically 2 human reviews + 1 AI) to check for discrepancies
-    if (reviews.length < 2) {
+    if (reviews.length < 1) {
       throw new BadRequestError(
         'Not enough completed reviews to check for discrepancies'
       );
@@ -37,10 +138,18 @@ class ReconciliationController {
     const avgScore =
       totalScores.reduce((sum, score) => sum + score, 0) / totalScores.length;
 
+    logger.info(
+      `Discrepancy Check for Proposal ${proposalId}: Scores: ${totalScores}, Average: ${avgScore}`
+    );
+
     // Check if any score differs from average by more than 20%
     const discrepancyThreshold = avgScore * 0.2;
     const hasDiscrepancy = totalScores.some(
       (score) => Math.abs(score - avgScore) > discrepancyThreshold
+    );
+
+    logger.info(
+      `Discrepancy Threshold: ${discrepancyThreshold}, Has Discrepancy: ${hasDiscrepancy}`
     );
 
     // Get submitter's faculty information to find reviewers from the same cluster
@@ -68,104 +177,52 @@ class ReconciliationController {
         );
       }
 
-      const submitterFacultyTitle =
-        typeof submitterFaculty === 'string'
+      const rawFacultyTitle = typeof submitterFaculty === 'string'
           ? submitterFaculty
-          : submitterFaculty.title;
+          : (submitterFaculty as any).title;
 
-      // Use the same cluster logic as in assignReviewers
-      const clusterMap = {
-        // Cluster 1
-        'Faculty of Agriculture': [
-          'Faculty of Life Sciences',
-          'Faculty of Veterinary Medicine',
-        ],
-        'Faculty of Life Sciences': [
-          'Faculty of Agriculture',
-          'Faculty of Veterinary Medicine',
-        ],
-        'Faculty of Veterinary Medicine': [
-          'Faculty of Agriculture',
-          'Faculty of Life Sciences',
-        ],
+      // Remove parenthetical codes and trim
+      const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
 
-        // Cluster 2
-        'Faculty of Pharmacy': [
-          'Faculty of Dentistry',
-          'Faculty of Medicine',
-          'Faculty of Basic Medical Sciences',
-        ],
-        'Faculty of Dentistry': [
-          'Faculty of Pharmacy',
-          'Faculty of Medicine',
-          'Faculty of Basic Medical Sciences',
-        ],
-        'Faculty of Medicine': [
-          'Faculty of Pharmacy',
-          'Faculty of Dentistry',
-          'Faculty of Basic Medical Sciences',
-        ],
-        'Faculty of Basic Medical Sciences': [
-          'Faculty of Pharmacy',
-          'Faculty of Dentistry',
-          'Faculty of Medicine',
-        ],
+      let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
 
-        // Cluster 3
-        'Faculty of Management Sciences': [
-          'Faculty of Education',
-          'Faculty of Social Sciences',
-          'Faculty of Vocational Education',
-        ],
-        'Faculty of Education': [
-          'Faculty of Management Sciences',
-          'Faculty of Social Sciences',
-          'Faculty of Vocational Education',
-        ],
-        'Faculty of Social Sciences': [
-          'Faculty of Management Sciences',
-          'Faculty of Education',
-          'Faculty of Vocational Education',
-        ],
-        'Faculty of Vocational Education': [
-          'Faculty of Management Sciences',
-          'Faculty of Education',
-          'Faculty of Social Sciences',
-        ],
+      // Find the canonical faculty title using keywords
+      for (const keyword in this.keywordToFacultyMap) {
+        if (cleanedFacultyTitle.includes(keyword)) {
+          canonicalFacultyTitle = this.keywordToFacultyMap[keyword];
+          break;
+        }
+      }
 
-        // Cluster 4
-        'Faculty of Law': ['Faculty of Arts', 'Institute of Education'],
-        'Faculty of Arts': ['Faculty of Law', 'Institute of Education'],
-        'Institute of Education': ['Faculty of Law', 'Faculty of Arts'],
+      if (!canonicalFacultyTitle) {
+        logger.error(
+          `No canonical faculty title found for cleaned title: ${cleanedFacultyTitle}`
+        );
+        throw new BadRequestError(
+          "Cannot assign reconciliation: Could not determine a matching faculty for the proposal's cluster."
+        );
+      }
 
-        // Cluster 5
-        'Faculty of Engineering': [
-          'Faculty of Physical Sciences',
-          'Faculty of Environmental Sciences',
-        ],
-        'Faculty of Physical Sciences': [
-          'Faculty of Engineering',
-          'Faculty of Environmental Sciences',
-        ],
-        'Faculty of Environmental Sciences': [
-          'Faculty of Engineering',
-          'Faculty of Physical Sciences',
-        ],
-      };
-
-      const eligibleFaculties =
-        clusterMap[submitterFacultyTitle as keyof typeof clusterMap] || [];
+      const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
 
       if (eligibleFaculties.length === 0) {
-        logger.error(`No eligible faculties found for ${submitterFacultyTitle}`);
+        logger.error(
+          `No eligible faculties found for ${canonicalFacultyTitle}`
+        );
         throw new BadRequestError(
           "Cannot assign reconciliation: No eligible faculties found for the proposal's cluster"
         );
       }
 
-      // Find reviewers from eligible faculties with the least current assignments
+      // Convert eligibleFaculties to a list of keywords for flexible matching
+      const eligibleFacultyKeywords = eligibleFaculties.map(title => title.split('(')[0].trim());
+
+      // Build a regex to match any of the keywords in the Faculty title
+      const regexPattern = eligibleFacultyKeywords.map(keyword => `.*${keyword}.*`).join('|');
+      const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
+
       const facultyIds = await Faculty.find({
-        title: { $in: eligibleFaculties },
+        title: { $regex: facultyTitleRegex },
       }).select('_id'); // Get ObjectIds instead of codes
 
       const facultyIdList = facultyIds.map((f) => f._id);
