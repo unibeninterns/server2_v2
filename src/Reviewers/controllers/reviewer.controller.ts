@@ -556,7 +556,8 @@ class ReviewerController {
 
       // Get completed reviews
       const completedReviews = await Review.find({
-        _id: { $in: reviewer.completedReviews },
+        reviewer: userId,
+        status: ReviewStatus.COMPLETED,
       }).populate('proposal', 'projectTitle submitterType');
 
       // Get in-progress reviews
@@ -571,11 +572,10 @@ class ReviewerController {
         status: ReviewStatus.OVERDUE,
       }).populate('proposal', 'projectTitle submitterType');
 
-      // Calculate statistics
-      const pendingReviews = assignedProposals.filter(
-        (p) => p.reviewStatus === 'pending'
-      ).length;
-      const totalAssigned = assignedProposals.length;
+      const totalAssigned = await Review.find({
+        reviewer: userId,
+        reviewType: { $ne: 'ai' },
+      }).populate('proposal', 'projectTitle submitterType');
 
       logger.info(`Reviewer ${userId} viewed their dashboard`);
 
@@ -590,11 +590,10 @@ class ReviewerController {
             academicTitle: reviewer.academicTitle,
           },
           statistics: {
-            pendingReviews,
             completed: completedReviews.length,
             inProgress: inProgressReviews.length,
             overdue: overdueReviews.length,
-            totalAssigned,
+            totalAssigned: totalAssigned.length,
           },
           assignedProposals,
           completedReviews,
