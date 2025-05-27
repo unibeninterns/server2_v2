@@ -43,6 +43,7 @@ export interface IProposal extends Document {
   finalScore?: number; // New field
   fundingAmount?: number; // New field
   feedbackComments?: string; // New field
+  isArchived?: boolean; // New field for archiving
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,6 +159,10 @@ const ProposalSchema: Schema<IProposal> = new Schema(
       type: String,
       enum: Object.values(ProposalStatus),
       default: ProposalStatus.SUBMITTED,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
     },
     reviewStatus: {
       type: String,

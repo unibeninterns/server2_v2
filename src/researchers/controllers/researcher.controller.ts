@@ -33,7 +33,7 @@ class ResearcherController {
       // Find all proposals by this researcher
       const proposals = await Proposal.find({ submitter: userId })
         .select(
-          '+projectTitle +problemStatement +objectives +methodology +expectedOutcomes +workPlan +estimatedBudget +cvFile +docFile'
+          '+projectTitle +problemStatement +objectives +methodology +expectedOutcomes +workPlan +estimatedBudget +cvFile +docFile +isArchived'
         )
         .sort({
           updatedAt: -1,
@@ -88,7 +88,7 @@ class ResearcherController {
       // Find the proposal and verify ownership
       const proposal = await Proposal.findById(proposalId)
         .select(
-          '+projectTitle +problemStatement +objectives +methodology +expectedOutcomes +workPlan +estimatedBudget +cvFile +docFile'
+          '+projectTitle +problemStatement +objectives +methodology +expectedOutcomes +workPlan +estimatedBudget +cvFile +docFile +isArchived'
         )
         .populate(
           'submitter',

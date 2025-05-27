@@ -23,6 +23,7 @@ interface IAdminResponse {
 interface IProposalQuery {
   status?: string;
   submitterType?: string;
+  isArchived?: boolean; // Add this new field
 }
 
 interface IPaginationOptions {
@@ -328,6 +329,7 @@ class AdminController {
         faculty,
         sort = 'createdAt',
         order = 'desc',
+        isArchived, // Add this new query parameter
       } = req.query;
 
       const query: IProposalQuery = {};
@@ -335,6 +337,12 @@ class AdminController {
       // Apply filters if provided
       if (status) query.status = status as string;
       if (submitterType) query.submitterType = submitterType as string;
+      // Apply isArchived filter
+      if (isArchived !== undefined) {
+        query.isArchived = isArchived === 'true'; // Convert string to boolean
+      } else {
+        query.isArchived = false; // Default to fetching non-archived proposals
+      }
 
       // Build sort object
       const sortObj: Record<string, 1 | -1> = {};
@@ -486,6 +494,75 @@ class AdminController {
           message: 'Failed to retrieve faculties with proposals',
         });
       }
+    }
+  );
+
+  // Get proposal statistics
+  // Toggle proposal archive status
+  toggleProposalArchiveStatus = asyncHandler(
+    async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const { id } = req.params;
+      const { isArchived } = req.body; // Expect boolean true/false
+
+      if (typeof isArchived !== 'boolean') {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid value for isArchived. Must be true or false.',
+        });
+        return;
+      }
+
+      const proposal = await Proposal.findById(id).populate(
+        'submitter',
+        'name email'
+      ); // Populate submitter for email notification
+
+      if (!proposal) {
+        throw new NotFoundError('Proposal not found');
+      }
+
+      const previousIsArchivedStatus = proposal.isArchived; // Store current status
+
+      proposal.isArchived = isArchived;
+      await proposal.save();
+
+      // Send email notification if proposal is newly archived
+      if (isArchived && !previousIsArchivedStatus) {
+        const submitterUser = proposal.submitter as unknown as IUser;
+        if (submitterUser && submitterUser.email && proposal.projectTitle) {
+          const subject = `Your Proposal "${proposal.projectTitle}" Has Been Archived`;
+          const body = `Dear ${submitterUser.name},\n\n` +
+                       `We wish to inform you that your proposal titled "${proposal.projectTitle}" has been archived.\n\n` +
+                       `This means it will no longer appear in your active proposals list, but remains accessible for record-keeping.\n\n` +
+                       `If you have any questions, please contact the administration.\n\n` +
+                       `Sincerely,\nDRID`;
+          try {
+            await emailService.sendCustomEmail(submitterUser.email, subject, body);
+            logger.info(`Sent archive notification email to ${submitterUser.email} for proposal ${proposal._id}`);
+          } catch (emailError: any) {
+            logger.error(`Failed to send archive notification email for proposal ${proposal._id}: ${emailError.message}`);
+          }
+        } else {
+          logger.warn(`Could not send archive notification for proposal ${proposal._id}: Missing submitter info or project title.`);
+        }
+      }
+
+      logger.info(
+        `Admin ${user.id} set archive status for proposal ${id} to ${isArchived}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Proposal ${isArchived ? 'archived' : 'unarchived'} successfully`,
+        data: proposal,
+      });
     }
   );
 
