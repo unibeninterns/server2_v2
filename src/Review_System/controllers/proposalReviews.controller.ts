@@ -529,4 +529,145 @@ class ProposalReviewsController {
     };
   };
 
+  // Get review statistics for dashboard
+  getReviewStatistics = asyncHandler(
+    async (
+      req: Request,
+      res: Response<IProposalReviewsResponse>
+    ): Promise<void> => {
+      const user = (req as AuthenticatedRequest).user;
+      const stats = await Promise.all([
+        // Total proposals with reviews
+        Proposal.aggregate([
+          {
+            $lookup: {
+              from: 'Reviews',
+              localField: '_id',
+              foreignField: 'proposal',
+              as: 'reviews',
+            },
+          },
+          {
+            $match: {
+              'reviews.0': { $exists: true },
+            },
+          },
+          { $count: 'total' },
+        ]),
+
+        // Proposals under review
+        Proposal.countDocuments({ reviewStatus: { $ne: 'reviewed' } }),
+
+        // Completed reviews
+        Proposal.countDocuments({ reviewStatus: 'reviewed' }),
+
+        // Proposals in reconciliation
+        Review.distinct('proposal', { reviewType: ReviewType.RECONCILIATION }),
+
+        // Proposals with discrepancy
+        Proposal.aggregate([
+          {
+            $lookup: {
+              from: 'Reviews',
+              localField: '_id',
+              foreignField: 'proposal',
+              as: 'reviews',
+            },
+          },
+          {
+            $addFields: {
+              hasDiscrepancy: {
+                $let: {
+                  vars: {
+                    completedNonReconciliation: {
+                      $filter: {
+                        input: '$reviews',
+                        as: 'review',
+                        cond: {
+                          $and: [
+                            { $eq: ['$$review.status', 'completed'] },
+                            { $ne: ['$$review.reviewType', 'reconciliation'] },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                  in: {
+                    $cond: {
+                      if: {
+                        $gte: [{ $size: '$$completedNonReconciliation' }, 2],
+                      },
+                      then: {
+                        $let: {
+                          vars: {
+                            scores: {
+                              $map: {
+                                input: '$$completedNonReconciliation',
+                                as: 'review',
+                                in: '$$review.totalScore',
+                              },
+                            },
+                          },
+                          in: {
+                            $let: {
+                              vars: {
+                                avg: { $avg: '$$scores' },
+                                max: { $max: '$$scores' },
+                                min: { $min: '$$scores' },
+                              },
+                              in: {
+                                $gt: [
+                                  {
+                                    $max: [
+                                      { $subtract: ['$$max', '$$avg'] },
+                                      { $subtract: ['$$avg', '$$min'] },
+                                    ],
+                                  },
+                                  { $multiply: ['$$avg', 0.2] },
+                                ],
+                              },
+                            },
+                          },
+                        },
+                      },
+                      else: false,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $match: { hasDiscrepancy: true },
+          },
+          { $count: 'total' },
+        ]),
+      ]);
+
+      logger.info(`Admin ${user.id} retrieved review statistics`);
+
+      const totalWithReviews = stats[0][0]?.total || 0;
+      const underReview = stats[1] || 0;
+      const reviewed = stats[2] || 0;
+      const inReconciliation = stats[3]?.length || 0;
+      const withDiscrepancy = stats[4][0]?.total || 0;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          totalWithReviews,
+          underReview,
+          reviewed,
+          inReconciliation,
+          withDiscrepancy,
+          completionRate:
+            totalWithReviews > 0
+              ? Math.round((reviewed / totalWithReviews) * 100)
+              : 0,
+        },
+      });
+    }
+  );
+}
+
 export default new ProposalReviewsController();

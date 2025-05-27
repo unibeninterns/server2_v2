@@ -15,7 +15,6 @@ import emailService from '../../services/email.service';
 import { NotFoundError } from '../../utils/customErrors';
 import agenda from '../../config/agenda'; // Import the agenda instance
 import { Types } from 'mongoose';
-import { generateAIReviewForProposal } from './aiScoring.controller';
 
 interface IAssignReviewResponse {
   success: boolean;
@@ -76,7 +75,9 @@ class AssignReviewController {
         return;
       }
 
-      logger.info(`Proposal ${proposalId} submitter faculty: ${JSON.stringify(submitterFaculty)}`);
+      logger.info(
+        `Proposal ${proposalId} submitter faculty: ${JSON.stringify(submitterFaculty)}`
+      );
 
       // Determine appropriate reviewer faculty based on review clusters
       const clusterMap = {
@@ -162,26 +163,27 @@ class AssignReviewController {
 
       // Define a map from keywords to canonical FacultyTitle
       const keywordToFacultyMap: { [key: string]: FacultyTitle } = {
-        "Agriculture": "Faculty of Agriculture",
-        "Life Sciences": "Faculty of Life Sciences",
-        "Veterinary Medicine": "Faculty of Veterinary Medicine",
-        "Pharmacy": "Faculty of Pharmacy",
-        "Dentistry": "Faculty of Dentistry",
-        "Medicine": "Faculty of Medicine",
-        "Basic Medical Sciences": "Faculty of Basic Medical Sciences",
-        "Management Sciences": "Faculty of Management Sciences",
-        "Education": "Faculty of Education",
-        "Social Sciences": "Faculty of Social Sciences",
-        "Vocational Education": "Faculty of Vocational Education",
-        "Law": "Faculty of Law",
-        "Arts": "Faculty of Arts",
-        "Institute of Education": "Institute of Education",
-        "Engineering": "Faculty of Engineering",
-        "Physical Sciences": "Faculty of Physical Sciences",
-        "Environmental Sciences": "Faculty of Environmental Sciences",
+        Agriculture: 'Faculty of Agriculture',
+        'Life Sciences': 'Faculty of Life Sciences',
+        'Veterinary Medicine': 'Faculty of Veterinary Medicine',
+        Pharmacy: 'Faculty of Pharmacy',
+        Dentistry: 'Faculty of Dentistry',
+        Medicine: 'Faculty of Medicine',
+        'Basic Medical Sciences': 'Faculty of Basic Medical Sciences',
+        'Management Sciences': 'Faculty of Management Sciences',
+        Education: 'Faculty of Education',
+        'Social Sciences': 'Faculty of Social Sciences',
+        'Vocational Education': 'Faculty of Vocational Education',
+        Law: 'Faculty of Law',
+        Arts: 'Faculty of Arts',
+        'Institute of Education': 'Institute of Education',
+        Engineering: 'Faculty of Engineering',
+        'Physical Sciences': 'Faculty of Physical Sciences',
+        'Environmental Sciences': 'Faculty of Environmental Sciences',
       };
 
-      const rawFacultyTitle = typeof submitterFaculty === 'string'
+      const rawFacultyTitle =
+        typeof submitterFaculty === 'string'
           ? submitterFaculty
           : (submitterFaculty as any).title;
 
@@ -212,11 +214,15 @@ class AssignReviewController {
         return;
       }
 
-      logger.info(`Canonical faculty title determined: ${canonicalFacultyTitle}`);
+      logger.info(
+        `Canonical faculty title determined: ${canonicalFacultyTitle}`
+      );
 
       const eligibleFaculties = clusterMap[canonicalFacultyTitle] || [];
 
-      logger.info(`Eligible faculties from cluster map: ${JSON.stringify(eligibleFaculties)}`);
+      logger.info(
+        `Eligible faculties from cluster map: ${JSON.stringify(eligibleFaculties)}`
+      );
 
       if (eligibleFaculties.length === 0) {
         logger.error(
@@ -233,21 +239,29 @@ class AssignReviewController {
       // Find reviewers from eligible faculties with the least current assignments
 
       // Convert eligibleFaculties to a list of keywords for flexible matching
-      const eligibleFacultyKeywords = eligibleFaculties.map(title => title.split('(')[0].trim());
+      const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
+        title.split('(')[0].trim()
+      );
 
       // Build a regex to match any of the keywords in the Faculty title
-      const regexPattern = eligibleFacultyKeywords.map(keyword => `.*${keyword}.*`).join('|');
+      const regexPattern = eligibleFacultyKeywords
+        .map((keyword) => `.*${keyword}.*`)
+        .join('|');
       const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
 
       const facultyIds = await Faculty.find({
         title: { $regex: facultyTitleRegex },
       }).select('_id'); // Get ObjectIds instead of codes
 
-      logger.info(`Faculty IDs found for eligible faculties: ${JSON.stringify(facultyIds)}`);
+      logger.info(
+        `Faculty IDs found for eligible faculties: ${JSON.stringify(facultyIds)}`
+      );
 
       const facultyIdList = facultyIds.map((f) => f._id);
 
-      logger.info(`Faculty ID list for matching: ${JSON.stringify(facultyIdList)}`);
+      logger.info(
+        `Faculty ID list for matching: ${JSON.stringify(facultyIdList)}`
+      );
 
       // Find eligible reviewers and sort by current workload
       const eligibleReviewers = await User.aggregate([
@@ -300,7 +314,9 @@ class AssignReviewController {
         },
       ]);
 
-      logger.info(`Eligible reviewers found: ${JSON.stringify(eligibleReviewers)}`);
+      logger.info(
+        `Eligible reviewers found: ${JSON.stringify(eligibleReviewers)}`
+      );
 
       if (eligibleReviewers.length < 1) {
         logger.error(
@@ -356,12 +372,17 @@ class AssignReviewController {
       }
       // Dispatch AI review generation job to Agenda
       if (proposal && proposal._id) {
-        await agenda.now('generate AI review', { proposalId: proposal._id.toString() });
-        logger.info(`Dispatched AI review job for proposal ${proposal._id} to Agenda`);
+        await agenda.now('generate AI review', {
+          proposalId: proposal._id.toString(),
+        });
+        logger.info(
+          `Dispatched AI review job for proposal ${proposal._id} to Agenda`
+        );
       } else {
-        logger.warn('Could not dispatch AI review job due to missing proposal information');
+        logger.warn(
+          'Could not dispatch AI review job due to missing proposal information'
+        );
       }
-
 
       logger.info(
         `Assigned proposal ${proposalId} to ${eligibleReviewers.length} human reviewers and dispatched AI review job`
