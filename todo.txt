@@ -1,20 +1,21 @@
-Create a  getAllReviews controller for admin to get all reviews made for a proposal, al including human, AI, and the reconciliation review, and conifgure it to also work to get all discrepancy reviews  too, this will let us see the AI scores too.
+TODO: Create a  getAllReviews controller for admin to get all reviews made for a proposal, al including human, AI, and the reconciliation review, and conifgure it to also work to get all discrepancy reviews  too, this will let us see the AI scores too.
 
-Create a front-end All reviews section using the controller above for the admin just before Decisions section.
+TODO: Create a front-end All reviews section using the controller above for the admin just before Decisions section.
 
-The way the proposal is displayed in the reviewer dashboard for review, I mean the text formatting is not looking nice like in the admin proposal section where if you view a proposal the text is structred well
+TODO: The way the proposal is displayed in the reviewer dashboard for review, I mean the text formatting is not looking nice like in the admin proposal section where if you view a proposal the text is structred well
 
-Remove all sensitive console.logs from the frontend.
+TODO: Remove all sensitive console.logs from the frontend.
 
-use the email template format I already have for those extra emails you added.
+TODO: use the email template format I already have for those extra emails you added.
 
-Fix admin reviewer section issue it's not display the assigned proposal reviews for reviewers just their statistics.
+TODO: Fix admin reviewer section issue it's not display the assigned proposal reviews for reviewers just their statistics.
 
-Firstly find all researcher affected by the School of Dentistry update to the faculty and department update I did since their faculty and department id's are now invalid.
+TODO: Firstly find all researcher affected by the School of Dentistry update to the faculty and department update I did since their faculty and department id's are now invalid.
 
-Next is to craft and send a professional mail to them all using Drid official mail telling them to resend the faculty and department they submitted the proposal with.
+TODO: Next is to craft and send a professional mail to them all using Drid official mail telling them to resend the faculty and department they submitted the proposal with.
+
 
 //Future
+TODO: Parse the docfile from masters students so that neccesary fields can be displayed in text format not in a document format for reviewers if they are assigned a masters proposal to review.
 
-Parse the docfile from masters students so that neccesary fields can be displayed in text format not in a document format for reviewers if they are assigned a masters proposal to review.
-Cv document upload UI improvement, a green check mark when a document is uploaded
+TODO: Cv document upload UI improvement, a green check mark when a document is uploaded
