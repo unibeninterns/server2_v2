@@ -74,7 +74,7 @@ router.get(
 );
 
 // Toggle proposal archive status
-router.patch(
+router.put(
   '/proposals/:id/archive',
   authenticateAdminToken,
   adminRateLimiter,

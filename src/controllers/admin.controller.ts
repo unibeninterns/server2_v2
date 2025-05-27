@@ -488,12 +488,21 @@ class AdminController {
       }
 
       const { id } = req.params;
-      const { isArchived } = req.body; // Expect boolean true/false
+      const { isArchived, comment } = req.body; // Expect boolean true/false and a comment
 
       if (typeof isArchived !== 'boolean') {
         res.status(400).json({
           success: false,
           message: 'Invalid value for isArchived. Must be true or false.',
+        });
+        return;
+      }
+
+      // If archiving, a comment is required
+      if (isArchived && !comment) {
+        res.status(400).json({
+          success: false,
+          message: 'A comment is required when archiving a proposal.',
         });
         return;
       }
@@ -510,24 +519,28 @@ class AdminController {
       const previousIsArchivedStatus = proposal.isArchived; // Store current status
 
       proposal.isArchived = isArchived;
+      // Store the comment if provided, or clear it if unarchiving
+      proposal.archiveReason = isArchived ? comment : undefined;
       await proposal.save();
 
-      // Send email notification if proposal is newly archived
-      if (isArchived && !previousIsArchivedStatus) {
+      // Send email notification if proposal status changed
+      if (isArchived !== previousIsArchivedStatus) {
         const submitterUser = proposal.submitter as unknown as IUser;
         if (submitterUser && submitterUser.email && proposal.projectTitle) {
           try {
             await emailService.sendProposalArchiveNotificationEmail(
               submitterUser.email,
               submitterUser.name,
-              proposal.projectTitle as string // Explicitly cast to string
+              proposal.projectTitle as string, // Explicitly cast to string
+              isArchived, // Pass the new archive status
+              comment // Pass the comment
             );
-            logger.info(`Sent archive notification email to ${submitterUser.email} for proposal ${proposal._id}`);
+            logger.info(`Sent ${isArchived ? 'archive' : 'unarchive'} notification email to ${submitterUser.email} for proposal ${proposal._id}`);
           } catch (error: any) {
-            logger.error(`Failed to send archive notification email for proposal ${proposal._id}: ${error.message}`);
+            logger.error(`Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email for proposal ${proposal._id}: ${error.message}`);
           }
         } else {
-          logger.warn(`Could not send archive notification for proposal ${proposal._id}: Missing submitter info or project title.`);
+          logger.warn(`Could not send ${isArchived ? 'archive' : 'unarchive'} notification for proposal ${proposal._id}: Missing submitter info or project title.`);
         }
       }
 
