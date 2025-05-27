@@ -3,15 +3,15 @@ import Review, {
   IScore,
   ReviewStatus,
   ReviewType,
-} from '../models/review.model';
+} from '../Review_System/models/review.model';
 import Proposal, {
   ProposalStatus,
-} from '../../Proposal_Submission/models/proposal.model';
-import Award, { AwardStatus } from '../models/award.model';
-import { NotFoundError } from '../../utils/customErrors';
-import asyncHandler from '../../utils/asyncHandler';
-import logger from '../../utils/logger';
-import emailService from '../../services/email.service';
+} from '../Proposal_Submission/models/proposal.model';
+import Award, { AwardStatus } from '../Review_System/models/award.model';
+import { NotFoundError } from '../utils/customErrors';
+import asyncHandler from '../utils/asyncHandler';
+import logger from '../utils/logger';
+import emailService from '../services/email.service';
 import mongoose from 'mongoose';
 
 interface IReviewResponse {

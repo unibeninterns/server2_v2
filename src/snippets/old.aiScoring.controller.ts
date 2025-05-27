@@ -4,11 +4,11 @@ import Review, {
   ReviewStatus,
   ReviewType,
   IScore,
-} from '../models/review.model';
-import Proposal from '../../Proposal_Submission/models/proposal.model';
-import { NotFoundError } from '../../utils/customErrors';
-import asyncHandler from '../../utils/asyncHandler';
-import logger from '../../utils/logger';
+} from '../Review_System/models/review.model';
+import Proposal from '../Proposal_Submission/models/proposal.model';
+import { NotFoundError } from '../utils/customErrors';
+import asyncHandler from '../utils/asyncHandler';
+import logger from '../utils/logger';
 
 interface IAIScoringResponse {
   success: boolean;
