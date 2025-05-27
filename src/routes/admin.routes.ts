@@ -6,6 +6,7 @@ import {
 } from '../middleware/auth.middleware';
 import researcherManagementRoutes from '../researchers/routes/researcher-management.routes';
 import assignReviewRoutes from '../Review_System/routes/assignReview.routes';
+import proposalReviewsRoutes from '../Review_System/routes/proposalReviews.routes';
 
 const router = express.Router();
 
@@ -82,5 +83,6 @@ router.put(
 
 router.use('/researcher', researcherManagementRoutes);
 router.use('/', assignReviewRoutes);
+router.use('/proposal-reviews', proposalReviewsRoutes);
 
 export default router;
