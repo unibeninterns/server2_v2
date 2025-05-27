@@ -124,19 +124,24 @@ class EmailService {
   async sendProposalArchiveNotificationEmail(
     to: string,
     name: string,
-    projectTitle: string
+    projectTitle: string,
+    isArchived: boolean,
+    comment?: string
   ): Promise<void> {
+    const subject = isArchived
+      ? `Your Proposal "${projectTitle}" Has Been Archived`
+      : `Your Proposal "${projectTitle}" Has Been Unarchived`;
     try {
       await this.transporter.sendMail({
         from: this.emailFrom,
         to: to,
-        subject: `Your Proposal "${projectTitle}" Has Been Archived`,
-        html: proposalArchiveNotificationTemplate(name, projectTitle),
+        subject: subject,
+        html: proposalArchiveNotificationTemplate(name, projectTitle, isArchived, comment),
       });
-      logger.info(`Proposal archive notification email sent to: ${to} for proposal ${projectTitle}`);
+      logger.info(`${isArchived ? 'Archive' : 'Unarchive'} notification email sent to: ${to} for proposal ${projectTitle}`);
     } catch (error) {
       logger.error(
-        `Failed to send proposal archive notification email to ${to} for proposal ${projectTitle}:`,
+        `Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email to ${to} for proposal ${projectTitle}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
       throw error;

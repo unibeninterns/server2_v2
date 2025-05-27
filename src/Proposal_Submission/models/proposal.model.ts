@@ -44,6 +44,7 @@ export interface IProposal extends Document {
   fundingAmount?: number; // New field
   feedbackComments?: string; // New field
   isArchived?: boolean; // New field for archiving
+  archiveReason?: string; // New field for archiving/unarchiving comment
   createdAt: Date;
   updatedAt: Date;
 }
@@ -163,6 +164,9 @@ const ProposalSchema: Schema<IProposal> = new Schema(
     isArchived: {
       type: Boolean,
       default: false,
+    },
+    archiveReason: {
+      type: String,
     },
     reviewStatus: {
       type: String,
