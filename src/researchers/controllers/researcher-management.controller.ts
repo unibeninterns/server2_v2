@@ -100,9 +100,10 @@ class ResearcherManagementController {
       const user = (req as AdminAuthenticatedRequest).user;
       const { researcherId } = req.params;
 
-      const researcher = await User.findById(researcherId).select(
-        '-password -refreshToken'
-      );
+      const researcher = await User.findById(researcherId)
+        .select('-password -refreshToken')
+        .populate('faculty', 'title code')
+        .populate('department', 'title code');
 
       if (!researcher) {
         throw new NotFoundError('Researcher not found');

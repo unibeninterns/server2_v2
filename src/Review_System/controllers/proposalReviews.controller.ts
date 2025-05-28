@@ -550,13 +550,17 @@ class ProposalReviewsController {
           {
             $match: {
               'reviews.0': { $exists: true },
+              isArchived: { $ne: true },
             },
           },
           { $count: 'total' },
         ]),
 
         // Proposals under review
-        Proposal.countDocuments({ reviewStatus: { $ne: 'reviewed' } }),
+        Proposal.countDocuments({
+          reviewStatus: { $ne: 'reviewed' },
+          isArchived: { $ne: true },
+        }),
 
         // Completed reviews
         Proposal.countDocuments({ reviewStatus: 'reviewed' }),
