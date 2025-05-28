@@ -338,7 +338,7 @@ class ReviewController {
               );
 
             // If no reconciliation was needed or created, finalize the proposal
-            if (!reconciliationCreated) {
+            if (!reconciliationCreated.hasDiscrepancy) {
               const proposal = await Proposal.findById(review.proposal);
               if (proposal) {
                 proposal.reviewStatus = 'reviewed';
