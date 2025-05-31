@@ -1,6 +1,12 @@
 /* eslint-disable max-lines */
-import Review, { ReviewStatus, ReviewType, IReview } from '../models/review.model';
-import Proposal, { IProposal } from '../../Proposal_Submission/models/proposal.model';
+import Review, {
+  ReviewStatus,
+  ReviewType,
+  IReview,
+} from '../models/review.model';
+import Proposal, {
+  IProposal,
+} from '../../Proposal_Submission/models/proposal.model';
 import User, { UserRole } from '../../model/user.model';
 import Award, { AwardStatus, IAward } from '../models/award.model';
 import { NotFoundError, BadRequestError } from '../../utils/customErrors';
@@ -91,27 +97,31 @@ class ReconciliationController {
   };
 
   // Define a map from keywords to canonical FacultyTitle
-  private keywordToFacultyMap: { [key: string]: keyof typeof ReconciliationController.prototype.clusterMap } = {
-    "Agriculture": "Faculty of Agriculture",
-    "Life Sciences": "Faculty of Life Sciences",
-    "Veterinary Medicine": "Faculty of Veterinary Medicine",
-    "Pharmacy": "Faculty of Pharmacy",
-    "Dentistry": "Faculty of Dentistry",
-    "Medicine": "Faculty of Medicine",
-    "Basic Medical Sciences": "Faculty of Basic Medical Sciences",
-    "Management Sciences": "Faculty of Management Sciences",
-    "Education": "Faculty of Education",
-    "Social Sciences": "Faculty of Social Sciences",
-    "Vocational Education": "Faculty of Vocational Education",
-    "Law": "Faculty of Law",
-    "Arts": "Faculty of Arts",
-    "Institute of Education": "Institute of Education",
-    "Engineering": "Faculty of Engineering",
-    "Physical Sciences": "Faculty of Physical Sciences",
-    "Environmental Sciences": "Faculty of Environmental Sciences",
+  private keywordToFacultyMap: {
+    [key: string]: keyof typeof ReconciliationController.prototype.clusterMap;
+  } = {
+    Agriculture: 'Faculty of Agriculture',
+    'Life Sciences': 'Faculty of Life Sciences',
+    'Veterinary Medicine': 'Faculty of Veterinary Medicine',
+    Pharmacy: 'Faculty of Pharmacy',
+    Dentistry: 'Faculty of Dentistry',
+    Medicine: 'Faculty of Medicine',
+    'Basic Medical Sciences': 'Faculty of Basic Medical Sciences',
+    'Management Sciences': 'Faculty of Management Sciences',
+    Education: 'Faculty of Education',
+    'Social Sciences': 'Faculty of Social Sciences',
+    'Vocational Education': 'Faculty of Vocational Education',
+    Law: 'Faculty of Law',
+    Arts: 'Faculty of Arts',
+    'Institute of Education': 'Institute of Education',
+    Engineering: 'Faculty of Engineering',
+    'Physical Sciences': 'Faculty of Physical Sciences',
+    'Environmental Sciences': 'Faculty of Environmental Sciences',
   };
 
   // Check for discrepancies between reviews and assign reconciliation if needed
+  // Updated checkReviewDiscrepancies method for reconciliation.controller.ts
+
   public async checkReviewDiscrepancies(proposalId: string): Promise<{
     hasDiscrepancy: boolean;
     scores: number[];
@@ -126,7 +136,7 @@ class ReconciliationController {
       status: ReviewStatus.COMPLETED,
     });
 
-    // Need at least 2 reviews (typically 2 human reviews + 1 AI) to check for discrepancies
+    // Need at least 1 review to check for discrepancies
     if (reviews.length < 1) {
       throw new BadRequestError(
         'Not enough completed reviews to check for discrepancies'
@@ -177,7 +187,8 @@ class ReconciliationController {
         );
       }
 
-      const rawFacultyTitle = typeof submitterFaculty === 'string'
+      const rawFacultyTitle =
+        typeof submitterFaculty === 'string'
           ? submitterFaculty
           : (submitterFaculty as any).title;
 
@@ -215,10 +226,14 @@ class ReconciliationController {
       }
 
       // Convert eligibleFaculties to a list of keywords for flexible matching
-      const eligibleFacultyKeywords = eligibleFaculties.map(title => title.split('(')[0].trim());
+      const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
+        title.split('(')[0].trim()
+      );
 
       // Build a regex to match any of the keywords in the Faculty title
-      const regexPattern = eligibleFacultyKeywords.map(keyword => `.*${keyword}.*`).join('|');
+      const regexPattern = eligibleFacultyKeywords
+        .map((keyword) => `.*${keyword}.*`)
+        .join('|');
       const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
 
       const facultyIds = await Faculty.find({
@@ -227,12 +242,12 @@ class ReconciliationController {
 
       const facultyIdList = facultyIds.map((f) => f._id);
 
-      // Find eligible reconciliation reviewer
-      const eligibleReviewer = await User.aggregate([
+      // First, try to find eligible reconciliation reviewer with good history (existing logic)
+      let eligibleReviewer = await User.aggregate([
         {
           $match: {
             faculty: { $in: facultyIdList },
-            role: UserRole.REVIEWER, // Add role filter
+            role: UserRole.REVIEWER,
             isActive: true,
             invitationStatus: { $in: ['accepted', 'added'] },
             _id: {
@@ -270,6 +285,20 @@ class ReconciliationController {
                 },
               },
             },
+            completedReviewsCount: {
+              $size: {
+                $filter: {
+                  input: '$activeReviews',
+                  as: 'review',
+                  cond: { $eq: ['$$review.status', 'completed'] },
+                },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            completedReviewsCount: { $gt: 0 }, // Only reviewers with completed reviews
           },
         },
         {
@@ -283,12 +312,64 @@ class ReconciliationController {
         },
       ]);
 
+      // If no reviewer found with completed reviews, find any available reviewer in the cluster
+      if (eligibleReviewer.length === 0) {
+        logger.info(
+          `No eligible reconciliation reviewer found with completed reviews for proposal ${proposalId}. Looking for any available reviewer in the cluster.`
+        );
+
+        eligibleReviewer = await User.aggregate([
+          {
+            $match: {
+              faculty: { $in: facultyIdList },
+              role: UserRole.REVIEWER,
+              isActive: true,
+              invitationStatus: { $in: ['accepted', 'added'] },
+              _id: {
+                $nin: existingReviewerIds.map(
+                  (id) => new mongoose.Types.ObjectId(id)
+                ),
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: 'Reviews',
+              localField: '_id',
+              foreignField: 'reviewer',
+              as: 'activeReviews',
+            },
+          },
+          {
+            $addFields: {
+              pendingReviewsCount: {
+                $size: {
+                  $filter: {
+                    input: '$activeReviews',
+                    as: 'review',
+                    cond: { $ne: ['$$review.status', 'completed'] },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $sort: {
+              pendingReviewsCount: 1, // Sort by lowest workload
+            },
+          },
+          {
+            $limit: 1,
+          },
+        ]);
+      }
+
       if (eligibleReviewer.length === 0) {
         logger.error(
           `No eligible reconciliation reviewer found for proposal ${proposalId}`
         );
         throw new BadRequestError(
-          'Cannot assign reconciliation: No eligible reviewers available'
+          'Cannot assign reconciliation: No eligible reviewers available in the cluster'
         );
       }
 
@@ -332,14 +413,16 @@ class ReconciliationController {
         averageScore: avgScore,
         discrepancyThreshold,
         reconciliationReviewer: {
-          id: eligibleReviewer[0]._id.toString(), // Ensure _id is string
+          id: eligibleReviewer[0]._id.toString(),
           name: eligibleReviewer[0].name,
         },
         dueDate,
       };
     } else {
       // No significant discrepancies
-      logger.info(`No significant discrepancies found for proposal ${proposalId}`);
+      logger.info(
+        `No significant discrepancies found for proposal ${proposalId}`
+      );
       return {
         hasDiscrepancy: false,
         scores: totalScores,
@@ -386,7 +469,10 @@ class ReconciliationController {
     const finalScore = reconciliationReview.totalScore * 0.6 + regularAvg * 0.4;
 
     // Update proposal status
-    const proposal = (await Proposal.findById(reconciliationReview.proposal)) as (Document<any, any, IProposal> & IProposal & { _id: mongoose.Types.ObjectId });
+    const proposal = (await Proposal.findById(
+      reconciliationReview.proposal
+    )) as Document<any, any, IProposal> &
+      IProposal & { _id: mongoose.Types.ObjectId };
     if (!proposal) {
       throw new NotFoundError('Proposal not found');
     }
@@ -395,7 +481,10 @@ class ReconciliationController {
     await proposal.save();
 
     // Create or update award record
-    let award = (await Award.findOne({ proposal: proposal._id.toString() })) as (Document<any, any, IAward> & IAward & { _id: mongoose.Types.ObjectId });
+    let award = (await Award.findOne({
+      proposal: proposal._id.toString(),
+    })) as Document<any, any, IAward> &
+      IAward & { _id: mongoose.Types.ObjectId };
 
     if (award) {
       award.finalScore = finalScore;
@@ -410,7 +499,8 @@ class ReconciliationController {
         fundingAmount: proposal.estimatedBudget || 0,
         feedbackComments:
           'Your proposal has been reviewed after reconciliation. Final decision pending.',
-      }) as (Document<any, any, IAward> & IAward & { _id: mongoose.Types.ObjectId });
+      }) as Document<any, any, IAward> &
+        IAward & { _id: mongoose.Types.ObjectId };
     }
 
     await award.save();
@@ -424,14 +514,24 @@ class ReconciliationController {
 
   // Get review discrepancy details for a specific proposal
   public async getDiscrepancyDetails(proposalId: string): Promise<{
-    reviews: Array<{ id: string; reviewer: any; scores: any; totalScore: number }>;
+    reviews: Array<{
+      id: string;
+      reviewer: any;
+      scores: any;
+      totalScore: number;
+    }>;
     criteriaDiscrepancies: Array<any>;
     overallDiscrepancy: any;
   }> {
     const reviews = (await Review.find({
       proposal: proposalId,
       reviewType: { $ne: ReviewType.RECONCILIATION },
-    }).populate('reviewer', 'name email faculty department')) as (Document<any, any, IReview> & IReview & { _id: mongoose.Types.ObjectId })[];
+    }).populate('reviewer', 'name email faculty department')) as (Document<
+      any,
+      any,
+      IReview
+    > &
+      IReview & { _id: mongoose.Types.ObjectId })[];
 
     if (reviews.length < 2) {
       throw new BadRequestError('Not enough reviews for discrepancy analysis');
@@ -457,8 +557,7 @@ class ReconciliationController {
       );
       const max = Math.max(...scores);
       const min = Math.min(...scores);
-      const avg =
-        scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
 
       return {
         criterion,

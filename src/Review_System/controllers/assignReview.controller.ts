@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import User, { UserRole, IUser } from '../../model/user.model';
 import Proposal, {
@@ -41,6 +42,8 @@ interface PopulatedReview extends Omit<IReview, 'proposal' | 'reviewer'> {
 
 class AssignReviewController {
   // Assign proposal to reviewers based on review clusters
+  // Updated assignReviewers method for assignReview.controller.ts
+
   assignReviewers = asyncHandler(
     async (
       req: Request<{ proposalId: string }>,
@@ -236,8 +239,6 @@ class AssignReviewController {
         return;
       }
 
-      // Find reviewers from eligible faculties with the least current assignments
-
       // Convert eligibleFaculties to a list of keywords for flexible matching
       const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
         title.split('(')[0].trim()
@@ -263,7 +264,7 @@ class AssignReviewController {
         `Faculty ID list for matching: ${JSON.stringify(facultyIdList)}`
       );
 
-      // Find eligible reviewers and sort by current workload
+      // Find eligible reviewers and sort by current workload with better distribution
       const eligibleReviewers = await User.aggregate([
         {
           $match: {
@@ -305,17 +306,22 @@ class AssignReviewController {
         },
         {
           $sort: {
-            discrepancyCount: 1,
-            pendingReviewsCount: 1,
+            pendingReviewsCount: 1, // Primary sort by workload
+            discrepancyCount: 1, // Secondary sort by discrepancy handling
+            _id: 1, // Tertiary sort for consistency
           },
-        },
-        {
-          $limit: 2, // Select top 2 reviewers with least workload
         },
       ]);
 
       logger.info(
-        `Eligible reviewers found: ${JSON.stringify(eligibleReviewers)}`
+        `Eligible reviewers found: ${JSON.stringify(
+          eligibleReviewers.map((r) => ({
+            id: r._id,
+            name: r.name,
+            faculty: r.faculty,
+            pendingReviews: r.pendingReviewsCount,
+          }))
+        )}`
       );
 
       if (eligibleReviewers.length < 1) {
@@ -330,11 +336,83 @@ class AssignReviewController {
         return;
       }
 
+      // Enhanced selection logic for better load balancing across faculties
+      const selectedReviewers = [] as typeof eligibleReviewers;
+      const reviewersByFaculty = new Map();
+
+      // Group reviewers by faculty for better distribution
+      eligibleReviewers.forEach((reviewer) => {
+        const facultyId = reviewer.faculty.toString();
+        if (!reviewersByFaculty.has(facultyId)) {
+          reviewersByFaculty.set(facultyId, []);
+        }
+        reviewersByFaculty.get(facultyId).push(reviewer);
+      });
+
+      // Select reviewers with preference for different faculties and low workload
+      const maxReviewers = Math.min(2, eligibleReviewers.length);
+      const facultyKeys = Array.from(reviewersByFaculty.keys());
+
+      for (
+        let i = 0;
+        i < maxReviewers && selectedReviewers.length < maxReviewers;
+        i++
+      ) {
+        // Try to select from different faculties if possible
+        for (const facultyId of facultyKeys) {
+          if (selectedReviewers.length >= maxReviewers) break;
+
+          const facultyReviewers = reviewersByFaculty.get(facultyId);
+
+          // Check if we already selected someone from this faculty
+          const alreadySelectedFromFaculty = selectedReviewers.some(
+            (selected) => selected.faculty.toString() === facultyId
+          );
+
+          if (!alreadySelectedFromFaculty && facultyReviewers.length > 0) {
+            // Select the reviewer with lowest workload from this faculty
+            const bestReviewer = facultyReviewers.reduce((prev, current) => {
+              if (current.pendingReviewsCount < prev.pendingReviewsCount) {
+                return current;
+              } else if (
+                current.pendingReviewsCount === prev.pendingReviewsCount
+              ) {
+                return current.discrepancyCount < prev.discrepancyCount
+                  ? current
+                  : prev;
+              }
+              return prev;
+            });
+
+            selectedReviewers.push(bestReviewer);
+            // Remove selected reviewer from the faculty list
+            const index = facultyReviewers.indexOf(bestReviewer);
+            facultyReviewers.splice(index, 1);
+          }
+        }
+
+        // If we still need more reviewers and couldn't get from different faculties
+        if (selectedReviewers.length < maxReviewers) {
+          // Just pick the next best reviewer regardless of faculty
+          const remainingReviewers = eligibleReviewers.filter(
+            (reviewer) =>
+              !selectedReviewers.some(
+                (selected) =>
+                  selected._id.toString() === reviewer._id.toString()
+              )
+          );
+
+          if (remainingReviewers.length > 0) {
+            selectedReviewers.push(remainingReviewers[0]);
+          }
+        }
+      }
+
       // Calculate due date (5 business days from now)
       const dueDate = calculateDueDate(5);
 
       // Create review assignments for the selected reviewers
-      const reviewPromises = eligibleReviewers.map((reviewer) => {
+      const reviewPromises = selectedReviewers.map((reviewer) => {
         const review = new Review({
           proposal: proposalId,
           reviewer: reviewer._id,
@@ -347,6 +425,9 @@ class AssignReviewController {
 
       // Execute all assignments
       const reviews = await Promise.all(reviewPromises);
+      logger.info(
+        `Assigned ${reviews.length} human reviewers to proposal ${proposalId}`
+      );
 
       // Update proposal status to under review
       proposal.status = 'under_review';
@@ -355,7 +436,7 @@ class AssignReviewController {
 
       // Notify reviewers about their assignments
       try {
-        for (const reviewer of eligibleReviewers) {
+        for (const reviewer of selectedReviewers) {
           await emailService.sendReviewAssignmentEmail(
             reviewer.email,
             proposal.projectTitle || 'Research Proposal',
@@ -370,6 +451,7 @@ class AssignReviewController {
         );
         // Continue execution even if emails fail
       }
+
       // Dispatch AI review generation job to Agenda
       if (proposal && proposal._id) {
         await agenda.now('generate AI review', {
@@ -385,18 +467,20 @@ class AssignReviewController {
       }
 
       logger.info(
-        `Assigned proposal ${proposalId} to ${eligibleReviewers.length} human reviewers and dispatched AI review job`
+        // eslint-disable-next-line max-len
+        `Assigned proposal ${proposalId} to ${selectedReviewers.length} human reviewers across ${new Set(selectedReviewers.map((r) => r.faculty.toString())).size} different faculties and dispatched AI review job`
       );
 
       res.status(200).json({
         success: true,
-        message: `Proposal assigned to ${eligibleReviewers.length} reviewers successfully`,
+        message: `Proposal assigned to ${selectedReviewers.length} reviewers successfully`,
         data: {
-          reviewers: eligibleReviewers.map((r) => ({
+          reviewers: selectedReviewers.map((r) => ({
             id: r._id,
             name: r.name,
             email: r.email,
-            faculty: r.facultyId,
+            faculty: r.faculty,
+            pendingReviews: r.pendingReviewsCount,
           })),
           dueDate,
         },
