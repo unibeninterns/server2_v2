@@ -342,77 +342,18 @@ class AssignReviewController {
         return;
       }
 
-      // Enhanced selection logic for better load balancing across faculties
-      const selectedReviewers = [] as typeof eligibleReviewers;
-      const reviewersByFaculty = new Map();
-
-      // Group reviewers by faculty for better distribution
-      eligibleReviewers.forEach((reviewer) => {
-        const facultyId = reviewer.faculty.toString();
-        if (!reviewersByFaculty.has(facultyId)) {
-          reviewersByFaculty.set(facultyId, []);
-        }
-        reviewersByFaculty.get(facultyId).push(reviewer);
-      });
-
-      // Select reviewers with preference for different faculties and low workload
-      const maxReviewers = Math.min(2, eligibleReviewers.length);
-      const facultyKeys = Array.from(reviewersByFaculty.keys());
-
-      for (
-        let i = 0;
-        i < maxReviewers && selectedReviewers.length < maxReviewers;
-        i++
-      ) {
-        // Try to select from different faculties if possible
-        for (const facultyId of facultyKeys) {
-          if (selectedReviewers.length >= maxReviewers) break;
-
-          const facultyReviewers = reviewersByFaculty.get(facultyId);
-
-          // Check if we already selected someone from this faculty
-          const alreadySelectedFromFaculty = selectedReviewers.some(
-            (selected) => selected.faculty.toString() === facultyId
-          );
-
-          if (!alreadySelectedFromFaculty && facultyReviewers.length > 0) {
-            // Select the reviewer with lowest workload from this faculty
-            const bestReviewer = facultyReviewers.reduce((prev: IReviewerWithCounts, current: IReviewerWithCounts) => {
-              if (current.pendingReviewsCount < prev.pendingReviewsCount) {
-                return current;
-              } else if (
-                current.pendingReviewsCount === prev.pendingReviewsCount
-              ) {
-                return current.discrepancyCount < prev.discrepancyCount
-                  ? current
-                  : prev;
-              }
-              return prev;
-            });
-
-            selectedReviewers.push(bestReviewer);
-            // Remove selected reviewer from the faculty list
-            const index = facultyReviewers.indexOf(bestReviewer);
-            facultyReviewers.splice(index, 1);
-          }
-        }
-
-        // If we still need more reviewers and couldn't get from different faculties
-        if (selectedReviewers.length < maxReviewers) {
-          // Just pick the next best reviewer regardless of faculty
-          const remainingReviewers = eligibleReviewers.filter(
-            (reviewer) =>
-              !selectedReviewers.some(
-                (selected) =>
-                  selected._id.toString() === reviewer._id.toString()
-              )
-          );
-
-          if (remainingReviewers.length > 0) {
-            selectedReviewers.push(remainingReviewers[0]);
-          }
-        }
+      // Shuffle eligible reviewers to ensure random assignment
+      for (let i = eligibleReviewers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [eligibleReviewers[i], eligibleReviewers[j]] = [
+          eligibleReviewers[j],
+          eligibleReviewers[i],
+        ];
       }
+
+      // Select the top 1 reviewer after shuffling
+      const maxReviewers = 1;
+      const selectedReviewers = eligibleReviewers.slice(0, maxReviewers);
 
       // Calculate due date (5 business days from now)
       const dueDate = calculateDueDate(5);
