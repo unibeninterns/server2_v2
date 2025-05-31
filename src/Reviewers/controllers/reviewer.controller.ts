@@ -302,37 +302,48 @@ class ReviewerController {
         .skip((options.page - 1) * options.limit)
         .limit(options.limit)
         .populate('faculty', 'title code')
-        .populate('department', 'title code');
+        .populate('department', 'title code')
+        .populate({
+          path: 'assignedProposals',
+          select: 'projectTitle submitter', // Select relevant fields from Proposal
+          populate: {
+            path: 'submitter',
+            select: 'name email', // Select relevant fields from Submitter (User)
+          },
+        });
 
       const totalReviewers = await User.countDocuments(query);
 
-      // Get statistics for each reviewer
-      const reviewersWithStats = await Promise.all(
+      // Get statistics and assigned proposals for each reviewer
+      const reviewersWithDetails = await Promise.all(
         reviewers.map(async (reviewer) => {
           // Get assigned reviews (all reviews assigned to this reviewer)
-          const assignedReviews = await Review.countDocuments({
+          // This count is based on the Review model, not directly from User.assignedProposals
+          const assignedReviewsCount = await Review.countDocuments({
             reviewer: reviewer._id,
           });
 
           // Get completed reviews
-          const completedReviews = await Review.countDocuments({
+          const completedReviewsCount = await Review.countDocuments({
             reviewer: reviewer._id,
             status: ReviewStatus.COMPLETED,
           });
 
           // Calculate completion rate
           const completionRate =
-            assignedReviews > 0
-              ? Math.round((completedReviews / assignedReviews) * 100)
+            assignedReviewsCount > 0
+              ? Math.round((completedReviewsCount / assignedReviewsCount) * 100)
               : 0;
 
           return {
             ...reviewer.toObject(),
             statistics: {
-              assigned: assignedReviews,
-              completed: completedReviews,
+              assigned: assignedReviewsCount,
+              completed: completedReviewsCount,
               completionRate,
             },
+            // Include the populated assignedProposals directly
+            assignedProposals: reviewer.assignedProposals,
           };
         })
       );
@@ -344,7 +355,7 @@ class ReviewerController {
         count: reviewers.length,
         totalPages: Math.ceil(totalReviewers / options.limit),
         currentPage: options.page,
-        data: reviewersWithStats,
+        data: reviewersWithDetails,
       });
     }
   );
@@ -370,22 +381,45 @@ class ReviewerController {
         .populate('department', 'title code')
         .populate({
           path: 'assignedProposals',
+          select: 'projectTitle submitter', // Add projectTitle here
           populate: {
             path: 'submitter',
             select: 'name email',
           },
-        })
-        .populate('completedReviews');
+        });
 
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
 
+      // Fetch completed reviews for this reviewer
+      const completedReviews = await Review.find({
+        reviewer: reviewer._id,
+        status: ReviewStatus.COMPLETED,
+      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+
+      // Fetch in-progress reviews for this reviewer
+      const inProgressReviews = await Review.find({
+        reviewer: reviewer._id,
+        status: ReviewStatus.IN_PROGRESS,
+      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+
+      // Fetch overdue reviews for this reviewer
+      const overdueReviews = await Review.find({
+        reviewer: reviewer._id,
+        status: ReviewStatus.OVERDUE,
+      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+
       logger.info(`Admin ${user._id} retrieved reviewer ${id}`);
 
       res.status(200).json({
         success: true,
-        data: reviewer,
+        data: {
+          ...reviewer.toObject(), // Convert Mongoose document to plain object
+          completedReviews,
+          inProgressReviews,
+          overdueReviews,
+        },
       });
     }
   );
