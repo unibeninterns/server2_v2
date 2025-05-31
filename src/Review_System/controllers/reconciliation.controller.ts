@@ -6,6 +6,7 @@ import Review, {
 } from '../models/review.model';
 import Proposal, {
   IProposal,
+  ProposalStatus,
 } from '../../Proposal_Submission/models/proposal.model';
 import User, { UserRole } from '../../model/user.model';
 import Award, { AwardStatus, IAward } from '../models/award.model';
@@ -383,7 +384,14 @@ class ReconciliationController {
         dueDate,
       });
 
+      await Proposal.findByIdAndUpdate(proposalId, {
+        status: ProposalStatus.REVISION_REQUESTED,
+      });
+
       await reconciliationReview.save();
+      logger.info(
+        `Created reconciliation review for proposal ${proposalId} assigned to reviewer ${eligibleReviewer[0]._id}`
+      );
 
       // Notify reconciliation reviewer
       try {
