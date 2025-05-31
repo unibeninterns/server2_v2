@@ -1,6 +1,3 @@
-TODO: Create a  getAllReviews controller for admin to get all reviews made for a proposal, al including human, AI, and the reconciliation review, and conifgure it to also work to get all discrepancy reviews  too, this will let us see the AI scores too.
-
-TODO: Create a front-end All reviews section using the controller above for the admin just before Decisions section.
 
 TODO: Firstly find all researcher affected by the School of Dentistry update to the faculty and department update I did since their faculty and department id's are now invalid.
 
