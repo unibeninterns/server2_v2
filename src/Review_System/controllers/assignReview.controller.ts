@@ -23,6 +23,12 @@ interface IAssignReviewResponse {
   data?: any;
 }
 
+// Define interface for reviewers with aggregated counts
+interface IReviewerWithCounts extends IUser {
+  pendingReviewsCount: number;
+  discrepancyCount: number;
+}
+
 // Define interface for populated review
 interface PopulatedReview extends Omit<IReview, 'proposal' | 'reviewer'> {
   reviewer?: {
@@ -371,7 +377,7 @@ class AssignReviewController {
 
           if (!alreadySelectedFromFaculty && facultyReviewers.length > 0) {
             // Select the reviewer with lowest workload from this faculty
-            const bestReviewer = facultyReviewers.reduce((prev, current) => {
+            const bestReviewer = facultyReviewers.reduce((prev: IReviewerWithCounts, current: IReviewerWithCounts) => {
               if (current.pendingReviewsCount < prev.pendingReviewsCount) {
                 return current;
               } else if (
