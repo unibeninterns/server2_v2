@@ -226,22 +226,43 @@ class ReconciliationController {
         );
       }
 
-      // Convert eligibleFaculties to a list of keywords for flexible matching
-      const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
-        title.split('(')[0].trim()
-      );
+      const eligibleKeywordsForRegex = eligibleFaculties.map(canonicalTitle => {
+        for (const keyword in this.keywordToFacultyMap) {
+          if (this.keywordToFacultyMap[keyword] === canonicalTitle) {
+            return keyword;
+          }
+        }
+        return null; // Should not happen if maps are consistent
+      }).filter(Boolean); // Remove nulls
 
       // Build a regex to match any of the keywords in the Faculty title
-      const regexPattern = eligibleFacultyKeywords
+      const regexPattern = eligibleKeywordsForRegex
         .map((keyword) => `.*${keyword}.*`)
         .join('|');
       const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
 
-      const facultyIds = await Faculty.find({
+      const facultyIds = (await Faculty.find({
         title: { $regex: facultyTitleRegex },
-      }).select('_id'); // Get ObjectIds instead of codes
+      }).select('_id')) as { _id: mongoose.Types.ObjectId }[]; // Get ObjectIds instead of codes
 
       const facultyIdList = facultyIds.map((f) => f._id);
+
+      logger.info(
+        `Reconciliation: Cleaned Faculty Title: ${cleanedFacultyTitle}`
+      );
+      logger.info(
+        `Reconciliation: Canonical Faculty Title: ${canonicalFacultyTitle}`
+      );
+      logger.info(
+        `Reconciliation: Eligible Faculties (from cluster map): ${eligibleFaculties.join(
+          ', '
+        )}`
+      );
+      logger.info(
+        `Reconciliation: Faculty IDs for aggregation: ${facultyIdList.map(
+          (id) => id.toString()
+        )}`
+      );
 
       // First, try to find eligible reconciliation reviewer with good history (existing logic)
       let eligibleReviewer = await User.aggregate([
@@ -365,14 +386,16 @@ class ReconciliationController {
         ]);
       }
 
-      if (eligibleReviewer.length === 0) {
-        logger.error(
-          `No eligible reconciliation reviewer found for proposal ${proposalId}`
-        );
-        throw new BadRequestError(
-          'Cannot assign reconciliation: No eligible reviewers available in the cluster'
-        );
-      }
+      logger.info(
+        `Reconciliation: Eligible reviewers found: ${JSON.stringify(
+          eligibleReviewer.map((r: any) => ({
+            id: r._id,
+            name: r.name,
+            faculty: r.faculty,
+            pendingReviews: r.pendingReviewsCount,
+          }))
+        )}`
+      );
 
       // Create reconciliation review assignment
       const dueDate = this.calculateDueDate(5);

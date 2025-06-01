@@ -335,6 +335,12 @@ class ReviewerController {
               ? Math.round((completedReviewsCount / assignedReviewsCount) * 100)
               : 0;
 
+          // Fetch all reviews assigned to this reviewer
+          const allAssignedReviews = await Review.find({
+            reviewer: reviewer._id,
+            reviewType: { $ne: 'ai' }, // Exclude AI reviews if necessary
+          }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details for each review
+
           return {
             ...reviewer.toObject(),
             statistics: {
@@ -378,37 +384,31 @@ class ReviewerController {
         role: UserRole.REVIEWER,
       })
         .populate('faculty', 'title code')
-        .populate('department', 'title code')
-        .populate({
-          path: 'assignedProposals',
-          select: 'projectTitle submitter', // Add projectTitle here
-          populate: {
-            path: 'submitter',
-            select: 'name email',
-          },
-        });
+        .populate('department', 'title code'); // Removed assignedProposals populate
 
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
 
-      // Fetch completed reviews for this reviewer
-      const completedReviews = await Review.find({
+      // Fetch all reviews assigned to this reviewer
+      const allAssignedReviews = await Review.find({
         reviewer: reviewer._id,
-        status: ReviewStatus.COMPLETED,
-      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+        reviewType: { $ne: 'ai' }, // Exclude AI reviews if necessary, based on the getReviewerDashboard
+      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details for each review
 
-      // Fetch in-progress reviews for this reviewer
-      const inProgressReviews = await Review.find({
-        reviewer: reviewer._id,
-        status: ReviewStatus.IN_PROGRESS,
-      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+      // Filter reviews by status
+      const completedReviews = allAssignedReviews.filter(
+        (review) => review.status === ReviewStatus.COMPLETED
+      );
+      const inProgressReviews = allAssignedReviews.filter(
+        (review) => review.status === ReviewStatus.IN_PROGRESS
+      );
+      const overdueReviews = allAssignedReviews.filter(
+        (review) => review.status === ReviewStatus.OVERDUE
+      );
 
-      // Fetch overdue reviews for this reviewer
-      const overdueReviews = await Review.find({
-        reviewer: reviewer._id,
-        status: ReviewStatus.OVERDUE,
-      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details
+      // Combine in-progress and overdue reviews to represent "assigned proposals reviews" (incomplete ones)
+      const assignedProposalsReviews = [...inProgressReviews, ...overdueReviews];
 
       logger.info(`Admin ${user._id} retrieved reviewer ${id}`);
 
@@ -416,6 +416,9 @@ class ReviewerController {
         success: true,
         data: {
           ...reviewer.toObject(), // Convert Mongoose document to plain object
+          // Set assignedProposals to be the list of incomplete reviews as per user's clarification
+          assignedProposals: assignedProposalsReviews,
+          allAssignedReviews, // Still provide all assigned review documents
           completedReviews,
           inProgressReviews,
           overdueReviews,

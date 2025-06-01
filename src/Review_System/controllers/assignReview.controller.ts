@@ -245,20 +245,24 @@ class AssignReviewController {
         return;
       }
 
-      // Convert eligibleFaculties to a list of keywords for flexible matching
-      const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
-        title.split('(')[0].trim()
-      );
+      const eligibleKeywordsForRegex = eligibleFaculties.map(canonicalTitle => {
+        for (const keyword in keywordToFacultyMap) {
+          if (keywordToFacultyMap[keyword] === canonicalTitle) {
+            return keyword;
+          }
+        }
+        return null; // Should not happen if maps are consistent
+      }).filter(Boolean); // Remove nulls
 
       // Build a regex to match any of the keywords in the Faculty title
-      const regexPattern = eligibleFacultyKeywords
+      const regexPattern = eligibleKeywordsForRegex
         .map((keyword) => `.*${keyword}.*`)
         .join('|');
       const facultyTitleRegex = new RegExp(regexPattern, 'i'); // Case-insensitive match
 
-      const facultyIds = await Faculty.find({
+      const facultyIds = (await Faculty.find({
         title: { $regex: facultyTitleRegex },
-      }).select('_id'); // Get ObjectIds instead of codes
+      }).select('_id')) as { _id: Types.ObjectId }[]; // Get ObjectIds instead of codes
 
       logger.info(
         `Faculty IDs found for eligible faculties: ${JSON.stringify(facultyIds)}`
@@ -321,7 +325,7 @@ class AssignReviewController {
 
       logger.info(
         `Eligible reviewers found: ${JSON.stringify(
-          eligibleReviewers.map((r) => ({
+          eligibleReviewers.map((r: any) => ({
             id: r._id,
             name: r.name,
             faculty: r.faculty,
@@ -330,17 +334,23 @@ class AssignReviewController {
         )}`
       );
 
-      if (eligibleReviewers.length < 1) {
-        logger.error(
-          `Not enough eligible reviewers found for proposal ${proposalId}`
-        );
-        res.status(400).json({
-          success: false,
-          message:
-            'Cannot assign reviewers: Not enough eligible reviewers available',
-        });
-        return;
-      }
+      // For testing purposes, return here without assigning or saving to DB
+      /*
+      res.status(200).json({
+        success: true,
+        message: 'Faculty and reviewer search completed for testing.',
+        data: {
+          facultyIdList: facultyIdList.map((id) => id.toString()),
+          eligibleReviewers: eligibleReviewers.map((r) => ({
+            id: r._id.toString(),
+            name: r.name,
+            faculty: r.faculty.toString(),
+            pendingReviews: r.pendingReviewsCount,
+          })),
+        },
+      });
+      return;
+      */
 
       // Shuffle eligible reviewers to ensure random assignment
       for (let i = eligibleReviewers.length - 1; i > 0; i--) {
