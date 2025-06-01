@@ -509,6 +509,7 @@ class ReconciliationController {
     }
 
     proposal.reviewStatus = 'reviewed';
+    proposal.status = ProposalStatus.UNDER_REVIEW; // Set main status to UNDER_REVIEW
     await proposal.save();
 
     // Create or update award record
