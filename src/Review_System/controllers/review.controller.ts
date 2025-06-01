@@ -4,7 +4,7 @@ import Review, {
   ReviewStatus,
   ReviewType,
 } from '../models/review.model';
-import Proposal from '../../Proposal_Submission/models/proposal.model';
+import Proposal, { ProposalStatus } from '../../Proposal_Submission/models/proposal.model';
 import Award, { AwardStatus } from '../models/award.model';
 import { NotFoundError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
@@ -311,6 +311,16 @@ class ReviewController {
             // We just need to ensure the process completes.
             // If it returns a result, we can use it for logging or further processing.
             if (reconciliationResult) {
+              // Update the proposal status to UNDER_REVIEW after successful reconciliation
+              const proposal = await Proposal.findById(reconciliationResult.proposal);
+              if (proposal) {
+                proposal.status = ProposalStatus.UNDER_REVIEW;
+                await proposal.save();
+                logger.info(
+                  `Proposal ${proposal._id} status updated to UNDER_REVIEW after reconciliation.`
+                );
+              }
+
               logger.info(
                 `Reconciliation review processed for proposal ${reconciliationResult.proposal}`
               );

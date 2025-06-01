@@ -408,7 +408,7 @@ class ReconciliationController {
       });
 
       await Proposal.findByIdAndUpdate(proposalId, {
-        status: ProposalStatus.REVISION_REQUESTED,
+        status: ProposalStatus.UNDER_REVIEW,
       });
 
       await reconciliationReview.save();

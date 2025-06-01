@@ -5,9 +5,9 @@ TODO: Next is to craft and send a professional mail to them all using Drid offic
 
 TODO: FIx the review assigning only assigning to stephen.
 
-TODO: fix support email in ai reviewer
-
 FIXME : Proposal page on frontend is not displaying needs revision when a proposal is flagged for discrepancy. 
+
+TODO : Update cluster maps with new and full clusters...
 
 //Future
 TODO: Parse the docfile from masters students so that neccesary fields can be displayed in text format not in a document format for reviewers if they are assigned a masters proposal to review.
@@ -16,3 +16,7 @@ TODO: Cv document upload UI improvement, a green check mark when a document is u
 
 
 TODO : Create a feature to fix the Create AI review in the proposals page on the home page...
+
+TODO : Add that all dates when hovered, show the full date string in the frontend as a title.
+
+TODO : Make the review assigner to send to people with less workload forst then if there are none, assign to any random person. Do the same logic for the reconciliation assigner.
