@@ -147,22 +147,34 @@ class ProposalReviewsController {
             currentStatus: {
               $cond: {
                 if: {
-                  $gt: [
+                  $and: [
                     {
-                      $size: {
-                        $filter: {
-                          input: '$reviews',
-                          as: 'review',
-                          cond: {
-                            $eq: ['$$review.reviewType', 'reconciliation'],
+                      $gt: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: '$reviews',
+                              as: 'review',
+                              cond: {
+                                $and: [
+                                  {
+                                    $eq: [
+                                      '$$review.reviewType',
+                                      'reconciliation',
+                                    ],
+                                  },
+                                  { $eq: ['$$review.status', 'completed'] },
+                                ],
+                              },
+                            },
                           },
                         },
-                      },
+                        0,
+                      ],
                     },
-                    0,
                   ],
                 },
-                then: 'reconciliation',
+                then: 'reviewed',
                 else: {
                   $cond: {
                     if: { $eq: ['$reviewStatus', 'reviewed'] },
@@ -174,60 +186,89 @@ class ProposalReviewsController {
             },
             // Check for discrepancy
             hasDiscrepancy: {
-              $let: {
-                vars: {
-                  completedNonReconciliation: {
-                    $filter: {
-                      input: '$reviews',
-                      as: 'review',
-                      cond: {
-                        $and: [
-                          { $eq: ['$$review.status', 'completed'] },
-                          { $ne: ['$$review.reviewType', 'reconciliation'] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                in: {
-                  $cond: {
-                    if: {
-                      $gte: [{ $size: '$$completedNonReconciliation' }, 2],
-                    },
-                    then: {
-                      $let: {
-                        vars: {
-                          scores: {
-                            $map: {
-                              input: '$$completedNonReconciliation',
-                              as: 'review',
-                              in: '$$review.totalScore',
-                            },
+              $cond: {
+                if: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: '$reviews',
+                          as: 'review',
+                          cond: {
+                            $and: [
+                              {
+                                $eq: ['$$review.reviewType', 'reconciliation'],
+                              },
+                              { $eq: ['$$review.status', 'completed'] },
+                            ],
                           },
                         },
-                        in: {
+                      },
+                    },
+                    0,
+                  ],
+                },
+                then: false, // Only if reconciliation review is completed
+                else: {
+                  // ...existing discrepancy calculation logic...
+                  $let: {
+                    vars: {
+                      completedNonReconciliation: {
+                        $filter: {
+                          input: '$reviews',
+                          as: 'review',
+                          cond: {
+                            $and: [
+                              { $eq: ['$$review.status', 'completed'] },
+                              {
+                                $ne: ['$$review.reviewType', 'reconciliation'],
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                    in: {
+                      $cond: {
+                        if: {
+                          $gte: [{ $size: '$$completedNonReconciliation' }, 2],
+                        },
+                        then: {
                           $let: {
                             vars: {
-                              avg: { $avg: '$$scores' },
-                              max: { $max: '$$scores' },
-                              min: { $min: '$$scores' },
+                              scores: {
+                                $map: {
+                                  input: '$$completedNonReconciliation',
+                                  as: 'review',
+                                  in: '$$review.totalScore',
+                                },
+                              },
                             },
                             in: {
-                              $gt: [
-                                {
-                                  $max: [
-                                    { $subtract: ['$$max', '$$avg'] },
-                                    { $subtract: ['$$avg', '$$min'] },
+                              $let: {
+                                vars: {
+                                  avg: { $avg: '$$scores' },
+                                  max: { $max: '$$scores' },
+                                  min: { $min: '$$scores' },
+                                },
+                                in: {
+                                  $gt: [
+                                    {
+                                      $max: [
+                                        { $subtract: ['$$max', '$$avg'] },
+                                        { $subtract: ['$$avg', '$$min'] },
+                                      ],
+                                    },
+                                    { $multiply: ['$$avg', 0.2] },
                                   ],
                                 },
-                                { $multiply: ['$$avg', 0.2] },
-                              ],
+                              },
                             },
                           },
                         },
+                        else: false,
                       },
                     },
-                    else: false,
                   },
                 },
               },
