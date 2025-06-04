@@ -10,6 +10,7 @@ import User, { IUser } from '../model/user.model'; // Import IUser interface
 import Faculty from '../Proposal_Submission/models/faculty.model';
 import emailService from '../services/email.service'; // Import email service
 import Award, { AwardStatus } from '../Review_System/models/award.model';
+import { PipelineStage } from 'mongoose';
 // Define a generic response interface for admin controller
 interface IAdminResponse {
   success: boolean;
@@ -219,7 +220,9 @@ class AdminController {
       const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
 
       if (!submitterUser.email || !proposal.projectTitle) {
-        throw new Error('Submitter email or proposal title not found for notification');
+        throw new Error(
+          'Submitter email or proposal title not found for notification'
+        );
       }
 
       await emailService.sendProposalStatusUpdateEmail(
@@ -290,219 +293,218 @@ class AdminController {
   );
 
   // Get all proposals with pagination and filtering
-  // Updated interface for proposal query
-interface IProposalQuery {
-  status?: string;
-  submitterType?: string;
-  isArchived?: boolean;
-  duplicates?: boolean; // New field for duplicate filter
-}
+  getAllProposals = asyncHandler(
+    async (req: Request, res: Response<IProposalResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      // Check if user is admin
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
 
-// Updated getAllProposals method in AdminController class
-getAllProposals = asyncHandler(
-  async (req: Request, res: Response<IProposalResponse>): Promise<void> => {
-    const user = (req as AdminAuthenticatedRequest).user;
-    // Check if user is admin
-    if (user.role !== 'admin') {
-      throw new UnauthorizedError(
-        'You do not have permission to access this resource'
-      );
-    }
+      const {
+        page = 1,
+        limit = 10,
+        status,
+        submitterType,
+        faculty,
+        sort = 'createdAt',
+        order = 'desc',
+        isArchived,
+      } = req.query;
 
-    const {
-      page = 1,
-      limit = 10,
-      status,
-      submitterType,
-      faculty,
-      sort = 'createdAt',
-      order = 'desc',
-      isArchived,
-      duplicates, // New query parameter
-    } = req.query;
+      const query: IProposalQuery = {};
 
-    const query: IProposalQuery = {};
+      // Apply filters if provided
+      if (status) query.status = status as string;
+      if (submitterType) query.submitterType = submitterType as string;
+      // Apply isArchived filter
+      if (isArchived !== undefined) {
+        query.isArchived = isArchived === 'true';
+      } else {
+        query.isArchived = false;
+      }
 
-    // Apply filters if provided
-    if (status) query.status = status as string;
-    if (submitterType) query.submitterType = submitterType as string;
-    // Apply isArchived filter
-    if (isArchived !== undefined) {
-      query.isArchived = isArchived === 'true';
-    } else {
-      query.isArchived = false;
-    }
+      // Handle duplicates sorting - when sort is 'duplicates'
+      if (sort === 'duplicates') {
+        // Find submitters who have more than one proposal
+        const duplicateSubmitters = await Proposal.aggregate([
+          { $match: query }, // Apply existing filters first
+          { $group: { _id: '$submitter', count: { $sum: 1 } } },
+          { $match: { count: { $gt: 1 } } },
+          { $project: { submitter: '$_id' } },
+        ]);
 
-    // Handle duplicates filter
-    if (duplicates === 'true') {
-      // Find submitters who have more than one proposal
-      const duplicateSubmitters = await Proposal.aggregate([
-        { $match: query }, // Apply existing filters first
-        { $group: { _id: '$submitter', count: { $sum: 1 } } },
-        { $match: { count: { $gt: 1 } } },
-        { $project: { submitter: '$_id' } }
-      ]);
+        const duplicateSubmitterIds = duplicateSubmitters.map(
+          (item) => item.submitter
+        );
 
-      const duplicateSubmitterIds = duplicateSubmitters.map(item => item.submitter);
+        if (duplicateSubmitterIds.length === 0) {
+          // No duplicates found, return empty result
+          logger.info(
+            `Admin ${user.id} retrieved proposals list - no duplicates found`
+          );
+          res.status(200).json({
+            success: true,
+            count: 0,
+            totalPages: 0,
+            currentPage: parseInt(page as string, 10),
+            data: [],
+          });
+        }
 
-      if (duplicateSubmitterIds.length === 0) {
-        // No duplicates found, return empty result
-        logger.info(`Admin ${user.id} retrieved proposals list - no duplicates found`);
-        return res.status(200).json({
+        // Build aggregation pipeline for grouped results by submitter
+        const pipeline = [
+          {
+            $match: {
+              ...query,
+              submitter: { $in: duplicateSubmitterIds },
+            },
+          },
+          {
+            $lookup: {
+              from: 'Users_2', // Adjust collection name as needed
+              localField: 'submitter',
+              foreignField: '_id',
+              as: 'submitterData',
+            },
+          },
+          {
+            $unwind: '$submitterData',
+          },
+          {
+            $sort: {
+              'submitterData.name': order === 'asc' ? 1 : -1, // Group by submitter name with specified order
+              createdAt: -1, // Within each submitter, sort by submission date (newest first)
+            },
+          },
+          {
+            $skip:
+              (parseInt(page as string, 10) - 1) *
+              parseInt(limit as string, 10),
+          },
+          {
+            $limit: parseInt(limit as string, 10),
+          },
+          {
+            $project: {
+              _id: 1,
+              projectTitle: 1,
+              submitterType: 1,
+              status: 1,
+              createdAt: 1,
+              isArchived: 1,
+              submitter: {
+                _id: '$submitterData._id',
+                name: '$submitterData.name',
+                email: '$submitterData.email',
+                userType: '$submitterData.userType',
+                phoneNumber: '$submitterData.phoneNumber',
+                alternativeEmail: '$submitterData.alternativeEmail',
+              },
+            },
+          },
+        ];
+
+        const proposals = await Proposal.aggregate(pipeline as PipelineStage[]);
+
+        // Count total proposals from duplicate submitters
+        const totalProposals = await Proposal.countDocuments({
+          ...query,
+          submitter: { $in: duplicateSubmitterIds },
+        });
+
+        logger.info(
+          `Admin ${user.id} retrieved proposals list sorted by duplicates`
+        );
+
+        res.status(200).json({
           success: true,
-          count: 0,
-          totalPages: 0,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
           currentPage: parseInt(page as string, 10),
-          data: [],
+          data: proposals,
         });
       }
 
-      // Build aggregation pipeline for grouped results
-      const pipeline = [
-        { 
-          $match: { 
-            ...query, 
-            submitter: { $in: duplicateSubmitterIds } 
-          } 
-        },
-        {
-          $lookup: {
-            from: 'Users_2', // Adjust collection name as needed
-            localField: 'submitter',
-            foreignField: '_id',
-            as: 'submitterData'
-          }
-        },
-        {
-          $unwind: '$submitterData'
-        },
-        {
-          $sort: {
-            'submitterData.name': 1, // Group by submitter name first
-            [sort as string]: order === 'asc' ? 1 : -1 // Then by requested sort field
-          }
-        },
-        {
-          $skip: (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
-        },
-        {
-          $limit: parseInt(limit as string, 10)
-        },
-        {
-          $project: {
-            _id: 1,
-            projectTitle: 1,
-            submitterType: 1,
-            status: 1,
-            createdAt: 1,
-            isArchived: 1,
-            submitter: {
-              _id: '$submitterData._id',
-              name: '$submitterData.name',
-              email: '$submitterData.email',
-              userType: '$submitterData.userType',
-              phoneNumber: '$submitterData.phoneNumber',
-              alternativeEmail: '$submitterData.alternativeEmail'
-            }
-          }
-        }
-      ];
+      // Regular sorting for other fields (existing logic continues...)
+      // Build sort object for non-duplicate queries
+      const sortObj: Record<string, 1 | -1> = {};
+      sortObj[sort as string] = order === 'asc' ? 1 : -1;
 
-      const proposals = await Proposal.aggregate(pipeline);
-      
-      // Count total proposals from duplicate submitters
-      const totalProposals = await Proposal.countDocuments({
-        ...query,
-        submitter: { $in: duplicateSubmitterIds }
-      });
+      const options: IPaginationOptions = {
+        page: parseInt(page as string, 10),
+        limit: parseInt(limit as string, 10),
+        sort: sortObj,
+      };
 
-      logger.info(`Admin ${user.id} retrieved proposals list filtered by duplicates`);
+      // Add faculty filter logic (existing code)
+      let proposals;
 
-      return res.status(200).json({
-        success: true,
-        count: proposals.length,
-        totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
-        currentPage: parseInt(page as string, 10),
-        data: proposals,
-      });
-    }
+      if (faculty) {
+        // Since faculty is stored in the User model, we need to first find users with the specified faculty
+        const usersWithFaculty = await User.find({
+          faculty: faculty as string,
+        }).select('_id');
+        const userIds = usersWithFaculty.map((user) => user._id);
 
-    // Build sort object for non-duplicate queries
-    const sortObj: Record<string, 1 | -1> = {};
-    sortObj[sort as string] = order === 'asc' ? 1 : -1;
+        // Then find proposals submitted by those users
+        proposals = await Proposal.find({
+          ...query,
+          submitter: { $in: userIds },
+        })
+          .sort({ [sort as string]: order === 'asc' ? 1 : -1 })
+          .skip(
+            (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
+          )
+          .limit(parseInt(limit as string, 10))
+          .populate(
+            'submitter',
+            'name email userType phoneNumber alternativeEmail'
+          );
 
-    const options: IPaginationOptions = {
-      page: parseInt(page as string, 10),
-      limit: parseInt(limit as string, 10),
-      sort: sortObj,
-    };
+        // Count total for pagination
+        const totalProposals = await Proposal.countDocuments({
+          ...query,
+          submitter: { $in: userIds },
+        });
 
-    // Add faculty filter logic (existing code)
-    let proposals;
-
-    if (faculty) {
-      // Since faculty is stored in the User model, we need to first find users with the specified faculty
-      const usersWithFaculty = await User.find({
-        faculty: faculty as string,
-      }).select('_id');
-      const userIds = usersWithFaculty.map((user) => user._id);
-
-      // Then find proposals submitted by those users
-      proposals = await Proposal.find({
-        ...query,
-        submitter: { $in: userIds },
-      })
-        .sort({ [sort as string]: order === 'asc' ? 1 : -1 })
-        .skip(
-          (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
-        )
-        .limit(parseInt(limit as string, 10))
-        .populate(
-          'submitter',
-          'name email userType phoneNumber alternativeEmail'
+        logger.info(
+          `Admin ${user.id} retrieved proposals list filtered by faculty`
         );
 
-      // Count total for pagination
-      const totalProposals = await Proposal.countDocuments({
-        ...query,
-        submitter: { $in: userIds },
-      });
+        res.status(200).json({
+          success: true,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
+          currentPage: parseInt(page as string, 10),
+          data: proposals,
+        });
+      } else {
+        const proposals = await Proposal.find(query)
+          .sort(sortObj)
+          .skip((options.page - 1) * options.limit)
+          .limit(options.limit)
+          .populate(
+            'submitter',
+            'name email userType phoneNumber alternativeEmail'
+          );
 
-      logger.info(
-        `Admin ${user.id} retrieved proposals list filtered by faculty`
-      );
+        const totalProposals = await Proposal.countDocuments(query);
 
-      res.status(200).json({
-        success: true,
-        count: proposals.length,
-        totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
-        currentPage: parseInt(page as string, 10),
-        data: proposals,
-      });
-    } else {
-      const proposals = await Proposal.find(query)
-        .sort(sortObj)
-        .skip((options.page - 1) * options.limit)
-        .limit(options.limit)
-        .populate(
-          'submitter',
-          'name email userType phoneNumber alternativeEmail'
-        );
+        logger.info(`Admin ${user.id} retrieved proposals list`);
 
-      const totalProposals = await Proposal.countDocuments(query);
-
-      logger.info(`Admin ${user.id} retrieved proposals list`);
-
-      res.status(200).json({
-        success: true,
-        count: proposals.length,
-        totalPages: Math.ceil(totalProposals / options.limit),
-        currentPage: options.page,
-        data: proposals,
-      });
+        res.status(200).json({
+          success: true,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / options.limit),
+          currentPage: options.page,
+          data: proposals,
+        });
+      }
     }
-  }
-);
+  );
 
   // Get proposal by ID
   getProposalById = asyncHandler(
@@ -639,12 +641,18 @@ getAllProposals = asyncHandler(
               isArchived, // Pass the new archive status
               comment // Pass the comment
             );
-            logger.info(`Sent ${isArchived ? 'archive' : 'unarchive'} notification email to ${submitterUser.email} for proposal ${proposal._id}`);
+            logger.info(
+              `Sent ${isArchived ? 'archive' : 'unarchive'} notification email to ${submitterUser.email} for proposal ${proposal._id}`
+            );
           } catch (error: any) {
-            logger.error(`Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email for proposal ${proposal._id}: ${error.message}`);
+            logger.error(
+              `Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email for proposal ${proposal._id}: ${error.message}`
+            );
           }
         } else {
-          logger.warn(`Could not send ${isArchived ? 'archive' : 'unarchive'} notification for proposal ${proposal._id}: Missing submitter info or project title.`);
+          logger.warn(
+            `Could not send ${isArchived ? 'archive' : 'unarchive'} notification for proposal ${proposal._id}: Missing submitter info or project title.`
+          );
         }
       }
 
