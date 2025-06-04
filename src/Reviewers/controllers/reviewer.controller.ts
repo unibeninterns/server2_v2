@@ -384,8 +384,7 @@ class ReviewerController {
         role: UserRole.REVIEWER,
       })
         .populate('faculty', 'title code')
-        .populate('department', 'title code'); // Removed assignedProposals populate
-
+        .populate('department', 'title code');
       if (!reviewer) {
         throw new NotFoundError('Reviewer not found');
       }
@@ -394,7 +393,14 @@ class ReviewerController {
       const allAssignedReviews = await Review.find({
         reviewer: reviewer._id,
         reviewType: { $ne: 'ai' }, // Exclude AI reviews if necessary, based on the getReviewerDashboard
-      }).populate('proposal', 'projectTitle submitterType'); // Populate proposal details for each review
+      }).populate({
+        path: 'proposal',
+        select: 'projectTitle submitterType submitter',
+        populate: {
+          path: 'submitter',
+          select: 'name email',
+        },
+      });
 
       // Filter reviews by status
       const completedReviews = allAssignedReviews.filter(
