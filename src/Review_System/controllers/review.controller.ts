@@ -1,26 +1,18 @@
 import { Request, Response } from 'express';
-import Review, {
-  IScore,
-  ReviewStatus,
-  ReviewType,
-} from '../models/review.model';
+import Review, { ReviewStatus, ReviewType } from '../models/review.model';
 import Proposal from '../../Proposal_Submission/models/proposal.model';
 import Award, { AwardStatus } from '../models/award.model';
 import { NotFoundError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import reconciliationController from '../controllers/reconciliation.controller';
+import mongoose from 'mongoose';
 
 interface IReviewResponse {
   success: boolean;
   count?: number;
   message?: string;
   data?: any;
-}
-
-interface ISubmitReviewRequest {
-  scores: IScore;
-  comments: string;
 }
 
 interface ResearcherAuthenticatedRequest extends Request {
@@ -30,32 +22,9 @@ interface ResearcherAuthenticatedRequest extends Request {
   };
 }
 
-// Add this interface near your other interfaces
-interface GetReviewRequest extends ResearcherAuthenticatedRequest {
-  params: {
-    id: string;
-  };
-}
-
 interface GetProposalReviewRequest extends ResearcherAuthenticatedRequest {
   params: {
     proposalId: string;
-  };
-}
-
-// Add this interface near your other interfaces
-interface SubmitReviewRequest extends ResearcherAuthenticatedRequest {
-  body: ISubmitReviewRequest;
-  params: {
-    id: string;
-  };
-}
-
-// Add this interface near your other interfaces
-interface SaveReviewProgressRequest extends ResearcherAuthenticatedRequest {
-  body: Partial<ISubmitReviewRequest>;
-  params: {
-    id: string;
   };
 }
 
@@ -146,7 +115,7 @@ class ReviewController {
 
           // Calculate discrepancy details
           const discrepancyDetails = await this.generateDiscrepancyAnalysis(
-            review.proposal.toString()
+            review.proposal._id || review.proposal.toString()
           );
 
           responseData.discrepancyInfo = {
@@ -385,11 +354,19 @@ class ReviewController {
   );
 
   // Helper method to generate discrepancy analysis for a proposal
-  generateDiscrepancyAnalysis = async (proposalId: string) => {
+  generateDiscrepancyAnalysis = async (
+    proposalId: string | mongoose.Types.ObjectId
+  ) => {
     try {
+      // Ensure we're working with just the ObjectId string
+      const proposalIdStr =
+        typeof proposalId === 'object' && proposalId !== null
+          ? (proposalId as any).toString()
+          : proposalId.split('{')[0].trim(); // Extract just the ID if it's a string containing object data
+
       // Execute the discrepancy analysis
       const result =
-        await reconciliationController.getDiscrepancyDetails(proposalId);
+        await reconciliationController.getDiscrepancyDetails(proposalIdStr);
 
       return result || { criteriaDiscrepancies: [], overallDiscrepancy: {} }; // The refactored method returns the data directly
     } catch (error) {
