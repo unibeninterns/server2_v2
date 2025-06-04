@@ -10,6 +10,7 @@ import User, { IUser } from '../model/user.model'; // Import IUser interface
 import Faculty from '../Proposal_Submission/models/faculty.model';
 import emailService from '../services/email.service'; // Import email service
 import Award, { AwardStatus } from '../Review_System/models/award.model';
+import { PipelineStage } from 'mongoose';
 // Define a generic response interface for admin controller
 interface IAdminResponse {
   success: boolean;
@@ -219,7 +220,9 @@ class AdminController {
       const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
 
       if (!submitterUser.email || !proposal.projectTitle) {
-        throw new Error('Submitter email or proposal title not found for notification');
+        throw new Error(
+          'Submitter email or proposal title not found for notification'
+        );
       }
 
       await emailService.sendProposalStatusUpdateEmail(
@@ -308,7 +311,7 @@ class AdminController {
         faculty,
         sort = 'createdAt',
         order = 'desc',
-        isArchived, // Add this new query parameter
+        isArchived,
       } = req.query;
 
       const query: IProposalQuery = {};
@@ -318,12 +321,115 @@ class AdminController {
       if (submitterType) query.submitterType = submitterType as string;
       // Apply isArchived filter
       if (isArchived !== undefined) {
-        query.isArchived = isArchived === 'true'; // Convert string to boolean
+        query.isArchived = isArchived === 'true';
       } else {
-        query.isArchived = false; // Default to fetching non-archived proposals
+        query.isArchived = false;
       }
 
-      // Build sort object
+      // Handle duplicates sorting - when sort is 'duplicates'
+      if (sort === 'duplicates') {
+        // Find submitters who have more than one proposal
+        const duplicateSubmitters = await Proposal.aggregate([
+          { $match: query }, // Apply existing filters first
+          { $group: { _id: '$submitter', count: { $sum: 1 } } },
+          { $match: { count: { $gt: 1 } } },
+          { $project: { submitter: '$_id' } },
+        ]);
+
+        const duplicateSubmitterIds = duplicateSubmitters.map(
+          (item) => item.submitter
+        );
+
+        if (duplicateSubmitterIds.length === 0) {
+          // No duplicates found, return empty result
+          logger.info(
+            `Admin ${user.id} retrieved proposals list - no duplicates found`
+          );
+          res.status(200).json({
+            success: true,
+            count: 0,
+            totalPages: 0,
+            currentPage: parseInt(page as string, 10),
+            data: [],
+          });
+        }
+
+        // Build aggregation pipeline for grouped results by submitter
+        const pipeline = [
+          {
+            $match: {
+              ...query,
+              submitter: { $in: duplicateSubmitterIds },
+            },
+          },
+          {
+            $lookup: {
+              from: 'Users_2', // Adjust collection name as needed
+              localField: 'submitter',
+              foreignField: '_id',
+              as: 'submitterData',
+            },
+          },
+          {
+            $unwind: '$submitterData',
+          },
+          {
+            $sort: {
+              'submitterData.name': order === 'asc' ? 1 : -1, // Group by submitter name with specified order
+              createdAt: -1, // Within each submitter, sort by submission date (newest first)
+            },
+          },
+          {
+            $skip:
+              (parseInt(page as string, 10) - 1) *
+              parseInt(limit as string, 10),
+          },
+          {
+            $limit: parseInt(limit as string, 10),
+          },
+          {
+            $project: {
+              _id: 1,
+              projectTitle: 1,
+              submitterType: 1,
+              status: 1,
+              createdAt: 1,
+              isArchived: 1,
+              submitter: {
+                _id: '$submitterData._id',
+                name: '$submitterData.name',
+                email: '$submitterData.email',
+                userType: '$submitterData.userType',
+                phoneNumber: '$submitterData.phoneNumber',
+                alternativeEmail: '$submitterData.alternativeEmail',
+              },
+            },
+          },
+        ];
+
+        const proposals = await Proposal.aggregate(pipeline as PipelineStage[]);
+
+        // Count total proposals from duplicate submitters
+        const totalProposals = await Proposal.countDocuments({
+          ...query,
+          submitter: { $in: duplicateSubmitterIds },
+        });
+
+        logger.info(
+          `Admin ${user.id} retrieved proposals list sorted by duplicates`
+        );
+
+        res.status(200).json({
+          success: true,
+          count: proposals.length,
+          totalPages: Math.ceil(totalProposals / parseInt(limit as string, 10)),
+          currentPage: parseInt(page as string, 10),
+          data: proposals,
+        });
+      }
+
+      // Regular sorting for other fields (existing logic continues...)
+      // Build sort object for non-duplicate queries
       const sortObj: Record<string, 1 | -1> = {};
       sortObj[sort as string] = order === 'asc' ? 1 : -1;
 
@@ -333,7 +439,7 @@ class AdminController {
         sort: sortObj,
       };
 
-      // Add faculty filter logic
+      // Add faculty filter logic (existing code)
       let proposals;
 
       if (faculty) {
@@ -535,12 +641,18 @@ class AdminController {
               isArchived, // Pass the new archive status
               comment // Pass the comment
             );
-            logger.info(`Sent ${isArchived ? 'archive' : 'unarchive'} notification email to ${submitterUser.email} for proposal ${proposal._id}`);
+            logger.info(
+              `Sent ${isArchived ? 'archive' : 'unarchive'} notification email to ${submitterUser.email} for proposal ${proposal._id}`
+            );
           } catch (error: any) {
-            logger.error(`Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email for proposal ${proposal._id}: ${error.message}`);
+            logger.error(
+              `Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email for proposal ${proposal._id}: ${error.message}`
+            );
           }
         } else {
-          logger.warn(`Could not send ${isArchived ? 'archive' : 'unarchive'} notification for proposal ${proposal._id}: Missing submitter info or project title.`);
+          logger.warn(
+            `Could not send ${isArchived ? 'archive' : 'unarchive'} notification for proposal ${proposal._id}: Missing submitter info or project title.`
+          );
         }
       }
 
