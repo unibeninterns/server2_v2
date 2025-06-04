@@ -9,6 +9,10 @@ FIXME : Proposal page on frontend is not displaying needs revision when a propos
 
 TODO : Update cluster maps with new and full clusters...
 
+TODO : Create versioning Releases on github
+
+TODO : Search bar in proposals page fpor admin
+
 //Future
 TODO: Parse the docfile from masters students so that neccesary fields can be displayed in text format not in a document format for reviewers if they are assigned a masters proposal to review.
 
