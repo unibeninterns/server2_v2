@@ -437,7 +437,15 @@ class ReassignReviewController {
     }
 
     // Check if reviewer is in the same cluster
-    return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+    if (reviewer.faculty) {
+      return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+    } else {
+      // Handle the case where faculty is undefined
+      logger.warn(
+        `Reviewer ${reviewerId} does not have a faculty assigned and cannot be considered eligible.`
+      );
+      return false;
+    }
   }
 
   // Helper method to verify reviewer eligibility for reconciliation reviews
@@ -469,7 +477,15 @@ class ReassignReviewController {
     }
 
     // Check if reviewer is in the same cluster
-    return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+    if (reviewer.faculty) {
+      return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+    } else {
+      // Handle the case where faculty is undefined
+      logger.warn(
+        `Reviewer ${reviewerId} does not have a faculty assigned and cannot be considered eligible.`
+      );
+      return false;
+    }
   }
 
   // Helper method to check if reviewer is in the same cluster
