@@ -8,13 +8,20 @@ import Proposal, {
   IProposal,
   ProposalStatus,
 } from '../../Proposal_Submission/models/proposal.model';
-import User, { UserRole } from '../../model/user.model';
+import User, { UserRole, IUser } from '../../model/user.model'; // Import IUser
 import Award, { AwardStatus, IAward } from '../models/award.model';
 import { NotFoundError, BadRequestError } from '../../utils/customErrors';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import mongoose, { Document } from 'mongoose';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
+
+interface IReviewerWithCounts extends IUser {
+  _id: mongoose.Types.ObjectId; // Explicitly define _id type
+  pendingReviewsCount: number;
+  discrepancyCount: number;
+  totalReviewsCount: number; // Added for the new requirement
+}
 
 class ReconciliationController {
   // Define the cluster map as a class property
@@ -118,6 +125,29 @@ class ReconciliationController {
     Engineering: 'Faculty of Engineering',
     'Physical Sciences': 'Faculty of Physical Sciences',
     'Environmental Sciences': 'Faculty of Environmental Sciences',
+  };
+
+  // Helper function to select a reviewer based on least workload, then randomization
+  private selectReviewerByWorkload = (
+    reviewers: IReviewerWithCounts[]
+  ): IReviewerWithCounts | undefined => {
+    if (reviewers.length === 0) {
+      return undefined;
+    }
+
+    // Sort by totalReviewsCount to find the least workload
+    reviewers.sort((a, b) => a.totalReviewsCount - b.totalReviewsCount);
+
+    const minReviews = reviewers[0].totalReviewsCount;
+    const leastWorkloadReviewers = reviewers.filter(
+      (r) => r.totalReviewsCount === minReviews
+    );
+
+    // Randomly select from those with the least workload
+    const randomIndex = Math.floor(
+      Math.random() * leastWorkloadReviewers.length
+    );
+    return leastWorkloadReviewers[randomIndex];
   };
 
   // Check for discrepancies between reviews and assign reconciliation if needed
@@ -264,8 +294,11 @@ class ReconciliationController {
         )}`
       );
 
-      // First, try to find eligible reconciliation reviewer with good history (existing logic)
-      let eligibleReviewer = await User.aggregate([
+      const MAX_REVIEWS_PER_REVIEWER = 10;
+      let selectedReconciliationReviewer: IReviewerWithCounts | undefined;
+
+      // Aggregation to find eligible reviewers for reconciliation
+      const allPossibleReviewers = await User.aggregate<IReviewerWithCounts>([
         {
           $match: {
             faculty: { $in: facultyIdList },
@@ -276,23 +309,24 @@ class ReconciliationController {
               $nin: existingReviewerIds.map(
                 (id) => new mongoose.Types.ObjectId(id)
               ),
-            },
+            }, // Exclude reviewers who already reviewed this proposal
           },
         },
         {
           $lookup: {
-            from: 'Reviews',
+            from: 'reviews', // Collection name is typically lowercase and plural
             localField: '_id',
             foreignField: 'reviewer',
-            as: 'activeReviews',
+            as: 'allReviews',
           },
         },
         {
           $addFields: {
+            totalReviewsCount: { $size: '$allReviews' }, // Count all reviews
             pendingReviewsCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $ne: ['$$review.status', 'completed'] },
                 },
@@ -301,7 +335,7 @@ class ReconciliationController {
             discrepancyCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
                 },
@@ -310,7 +344,7 @@ class ReconciliationController {
             completedReviewsCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $eq: ['$$review.status', 'completed'] },
                 },
@@ -319,89 +353,55 @@ class ReconciliationController {
           },
         },
         {
-          $match: {
-            completedReviewsCount: { $gt: 0 }, // Only reviewers with completed reviews
-          },
-        },
-        {
           $sort: {
-            discrepancyCount: 1,
-            pendingReviewsCount: 1,
+            totalReviewsCount: 1, // Primary sort by total workload
+            pendingReviewsCount: 1, // Secondary sort by pending workload
+            discrepancyCount: 1, // Tertiary sort by discrepancy handling
+            _id: 1, // Quaternary sort for consistency
           },
-        },
-        {
-          $limit: 1,
         },
       ]);
 
-      // If no reviewer found with completed reviews, find any available reviewer in the cluster
-      if (eligibleReviewer.length === 0) {
-        logger.info(
-          `No eligible reconciliation reviewer found with completed reviews for proposal ${proposalId}. Looking for any available reviewer in the cluster.`
-        );
+      // Filter reviewers who have less than the maximum allowed reviews
+      const reviewersUnderLimit = allPossibleReviewers.filter(
+        (reviewer) => reviewer.totalReviewsCount < MAX_REVIEWS_PER_REVIEWER
+      );
 
-        eligibleReviewer = await User.aggregate([
-          {
-            $match: {
-              faculty: { $in: facultyIdList },
-              role: UserRole.REVIEWER,
-              isActive: true,
-              invitationStatus: { $in: ['accepted', 'added'] },
-              _id: {
-                $nin: existingReviewerIds.map(
-                  (id) => new mongoose.Types.ObjectId(id)
-                ),
-              },
-            },
-          },
-          {
-            $lookup: {
-              from: 'Reviews',
-              localField: '_id',
-              foreignField: 'reviewer',
-              as: 'activeReviews',
-            },
-          },
-          {
-            $addFields: {
-              pendingReviewsCount: {
-                $size: {
-                  $filter: {
-                    input: '$activeReviews',
-                    as: 'review',
-                    cond: { $ne: ['$$review.status', 'completed'] },
-                  },
-                },
-              },
-            },
-          },
-          {
-            $sort: {
-              pendingReviewsCount: 1, // Sort by lowest workload
-            },
-          },
-          {
-            $limit: 1,
-          },
-        ]);
+      if (reviewersUnderLimit.length > 0) {
+        // If there are reviewers under the limit, prioritize by least workload
+        selectedReconciliationReviewer =
+          this.selectReviewerByWorkload(reviewersUnderLimit);
+        logger.info(
+          `Selected reconciliation reviewer ${selectedReconciliationReviewer?._id} (under limit) with ${selectedReconciliationReviewer?.totalReviewsCount} reviews.`
+        );
+      } else if (allPossibleReviewers.length > 0) {
+        // If all reviewers have reached or exceeded the limit,
+        // still prioritize by least workload among them
+        selectedReconciliationReviewer =
+          this.selectReviewerByWorkload(allPossibleReviewers);
+        logger.info(
+          `Selected reconciliation reviewer ${selectedReconciliationReviewer?._id} (over limit) with ${selectedReconciliationReviewer?.totalReviewsCount} reviews.`
+        );
+      } else {
+        // No eligible reviewers found at all
+        logger.error('No eligible reconciliation reviewers found for assignment.');
+        throw new BadRequestError('No eligible reconciliation reviewers found for assignment.');
       }
 
-      logger.info(
-        `Reconciliation: Eligible reviewers found: ${JSON.stringify(
-          eligibleReviewer.map((r: any) => ({
-            id: r._id,
-            name: r.name,
-            faculty: r.faculty,
-            pendingReviews: r.pendingReviewsCount,
-          }))
-        )}`
-      );
+      // Ensure a reviewer was selected
+      if (!selectedReconciliationReviewer) {
+        logger.error('Failed to select a reconciliation reviewer.');
+        throw new Error('Failed to select a reconciliation reviewer for assignment.');
+      }
+
+      // Explicitly cast to IReviewerWithCounts after null check
+      selectedReconciliationReviewer = selectedReconciliationReviewer as IReviewerWithCounts;
 
       // Create reconciliation review assignment
       const dueDate = this.calculateDueDate(5);
       const reconciliationReview = new Review({
         proposal: proposalId,
-        reviewer: eligibleReviewer[0]._id,
+        reviewer: selectedReconciliationReviewer._id,
         reviewType: ReviewType.RECONCILIATION,
         status: ReviewStatus.IN_PROGRESS,
         dueDate,
@@ -413,14 +413,14 @@ class ReconciliationController {
 
       await reconciliationReview.save();
       logger.info(
-        `Created reconciliation review for proposal ${proposalId} assigned to reviewer ${eligibleReviewer[0]._id}`
+        `Created reconciliation review for proposal ${proposalId} assigned to reviewer ${selectedReconciliationReviewer._id}`
       );
 
       // Notify reconciliation reviewer
       try {
         await emailService.sendReconciliationAssignmentEmail(
-          eligibleReviewer[0].email,
-          eligibleReviewer[0].name,
+          selectedReconciliationReviewer.email,
+          selectedReconciliationReviewer.name,
           proposal.projectTitle || 'Research Proposal',
           dueDate,
           reviews.length,
@@ -435,7 +435,7 @@ class ReconciliationController {
       }
 
       logger.info(
-        `Assigned reconciliation review for proposal ${proposalId} to reviewer ${eligibleReviewer[0]._id}`
+        `Assigned reconciliation review for proposal ${proposalId} to reviewer ${selectedReconciliationReviewer._id}`
       );
 
       return {
@@ -444,8 +444,8 @@ class ReconciliationController {
         averageScore: avgScore,
         discrepancyThreshold,
         reconciliationReviewer: {
-          id: eligibleReviewer[0]._id.toString(),
-          name: eligibleReviewer[0].name,
+          id: selectedReconciliationReviewer._id.toString(),
+          name: selectedReconciliationReviewer.name,
         },
         dueDate,
       };

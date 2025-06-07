@@ -1,10 +1,3 @@
-
-TODO: Firstly find all researcher affected by the School of Dentistry update to the faculty and department update I did since their faculty and department id's are now invalid.
-
-TODO: Next is to craft and send a professional mail to them all using Drid official mail telling them to resend the faculty and department they submitted the proposal with.
-
-TODO: FIx the review assigning only assigning to stephen.
-
 FIXME : Proposal page on frontend is not displaying needs revision when a proposal is flagged for discrepancy. 
 
 TODO : Update cluster maps with new and full clusters...

@@ -27,6 +27,7 @@ interface IAssignReviewResponse {
 interface IReviewerWithCounts extends IUser {
   pendingReviewsCount: number;
   discrepancyCount: number;
+  totalReviewsCount: number; // Added for the new requirement
 }
 
 // Define interface for populated review
@@ -275,7 +276,7 @@ class AssignReviewController {
       );
 
       // Find eligible reviewers and sort by current workload with better distribution
-      const eligibleReviewers = await User.aggregate([
+      const eligibleReviewers = await User.aggregate<IReviewerWithCounts>([
         {
           $match: {
             faculty: { $in: facultyIdList },
@@ -286,18 +287,19 @@ class AssignReviewController {
         },
         {
           $lookup: {
-            from: 'Reviews',
+            from: 'reviews', // Collection name is typically lowercase and plural
             localField: '_id',
             foreignField: 'reviewer',
-            as: 'activeReviews',
+            as: 'allReviews',
           },
         },
         {
           $addFields: {
+            totalReviewsCount: { $size: '$allReviews' }, // Count all reviews
             pendingReviewsCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $ne: ['$$review.status', 'completed'] },
                 },
@@ -306,7 +308,7 @@ class AssignReviewController {
             discrepancyCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
                 },
@@ -316,74 +318,105 @@ class AssignReviewController {
         },
         {
           $sort: {
-            pendingReviewsCount: 1, // Primary sort by workload
-            discrepancyCount: 1, // Secondary sort by discrepancy handling
-            _id: 1, // Tertiary sort for consistency
+            totalReviewsCount: 1, // Primary sort by total workload
+            pendingReviewsCount: 1, // Secondary sort by pending workload
+            discrepancyCount: 1, // Tertiary sort by discrepancy handling
+            _id: 1, // Quaternary sort for consistency
           },
         },
       ]);
 
       logger.info(
         `Eligible reviewers found: ${JSON.stringify(
-          eligibleReviewers.map((r: any) => ({
+          eligibleReviewers.map((r) => ({
             id: r._id,
             name: r.name,
             faculty: r.faculty,
+            totalReviews: r.totalReviewsCount,
             pendingReviews: r.pendingReviewsCount,
           }))
         )}`
       );
 
-      // For testing purposes, return here without assigning or saving to DB
-      /*
-      res.status(200).json({
-        success: true,
-        message: 'Faculty and reviewer search completed for testing.',
-        data: {
-          facultyIdList: facultyIdList.map((id) => id.toString()),
-          eligibleReviewers: eligibleReviewers.map((r) => ({
-            id: r._id.toString(),
-            name: r.name,
-            faculty: r.faculty.toString(),
-            pendingReviews: r.pendingReviewsCount,
-          })),
-        },
-      });
-      return;
-      */
+      const MAX_REVIEWS_PER_REVIEWER = 10;
+      let selectedReviewer: IReviewerWithCounts | undefined;
 
-      // Shuffle eligible reviewers to ensure random assignment
-      for (let i = eligibleReviewers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [eligibleReviewers[i], eligibleReviewers[j]] = [
-          eligibleReviewers[j],
-          eligibleReviewers[i],
-        ];
+      // Function to select a reviewer based on least workload, then randomization
+      const selectReviewerByWorkload = (
+        reviewers: IReviewerWithCounts[]
+      ): IReviewerWithCounts | undefined => {
+        if (reviewers.length === 0) {
+          return undefined;
+        }
+
+        // Sort by totalReviewsCount to find the least workload
+        reviewers.sort((a, b) => a.totalReviewsCount - b.totalReviewsCount);
+
+        const minReviews = reviewers[0].totalReviewsCount;
+        const leastWorkloadReviewers = reviewers.filter(
+          (r) => r.totalReviewsCount === minReviews
+        );
+
+        // Randomly select from those with the least workload
+        const randomIndex = Math.floor(
+          Math.random() * leastWorkloadReviewers.length
+        );
+        return leastWorkloadReviewers[randomIndex];
+      };
+
+      // Filter reviewers who have less than the maximum allowed reviews
+      const reviewersUnderLimit = eligibleReviewers.filter(
+        (reviewer) => reviewer.totalReviewsCount < MAX_REVIEWS_PER_REVIEWER
+      );
+
+      if (reviewersUnderLimit.length > 0) {
+        // If there are reviewers under the limit, prioritize by least workload
+        selectedReviewer = selectReviewerByWorkload(reviewersUnderLimit);
+        logger.info(
+          `Selected reviewer ${selectedReviewer?._id} (under limit) with ${selectedReviewer?.totalReviewsCount} reviews.`
+        );
+      } else if (eligibleReviewers.length > 0) {
+        // If all reviewers have reached or exceeded the limit,
+        // still prioritize by least workload among them
+        selectedReviewer = selectReviewerByWorkload(eligibleReviewers);
+        logger.info(
+          `Selected reviewer ${selectedReviewer?._id} (over limit) with ${selectedReviewer?.totalReviewsCount} reviews.`
+        );
+      } else {
+        // No eligible reviewers found at all
+        logger.error('No eligible reviewers found for assignment.');
+        res.status(400).json({
+          success: false,
+          message: 'No eligible reviewers found for assignment.',
+        });
+        return;
       }
 
-      // Select the top 1 reviewer after shuffling
-      const maxReviewers = 1;
-      const selectedReviewers = eligibleReviewers.slice(0, maxReviewers);
+      // Ensure a reviewer was selected
+      if (!selectedReviewer) {
+        logger.error('Failed to select a reviewer.');
+        res.status(500).json({
+          success: false,
+          message: 'Failed to select a reviewer for assignment.',
+        });
+        return;
+      }
 
       // Calculate due date (5 business days from now)
       const dueDate = calculateDueDate(5);
 
-      // Create review assignments for the selected reviewers
-      const reviewPromises = selectedReviewers.map((reviewer) => {
-        const review = new Review({
-          proposal: proposalId,
-          reviewer: reviewer._id,
-          reviewType: ReviewType.HUMAN,
-          status: ReviewStatus.IN_PROGRESS,
-          dueDate,
-        });
-        return review.save();
+      // Create review assignment for the selected reviewer
+      const review = new Review({
+        proposal: proposalId,
+        reviewer: selectedReviewer._id,
+        reviewType: ReviewType.HUMAN,
+        status: ReviewStatus.IN_PROGRESS,
+        dueDate,
       });
 
-      // Execute all assignments
-      const reviews = await Promise.all(reviewPromises);
+      const savedReview = await review.save();
       logger.info(
-        `Assigned ${reviews.length} human reviewers to proposal ${proposalId}`
+        `Assigned proposal ${proposalId} to human reviewer ${selectedReviewer._id}`
       );
 
       // Update proposal status to under review
@@ -391,19 +424,17 @@ class AssignReviewController {
       proposal.reviewStatus = 'pending';
       await proposal.save();
 
-      // Notify reviewers about their assignments
+      // Notify reviewer about their assignment
       try {
-        for (const reviewer of selectedReviewers) {
-          await emailService.sendReviewAssignmentEmail(
-            reviewer.email,
-            proposal.projectTitle || 'Research Proposal',
-            reviewer.name,
-            dueDate
-          );
-        }
+        await emailService.sendReviewAssignmentEmail(
+          selectedReviewer.email,
+          proposal.projectTitle || 'Research Proposal',
+          selectedReviewer.name,
+          dueDate
+        );
       } catch (error) {
         logger.error(
-          'Failed to send reviewer notification emails:',
+          'Failed to send reviewer notification email:',
           error instanceof Error ? error.message : 'Unknown error'
         );
         // Continue execution even if emails fail
@@ -425,20 +456,20 @@ class AssignReviewController {
 
       logger.info(
         // eslint-disable-next-line max-len
-        `Assigned proposal ${proposalId} to ${selectedReviewers.length} human reviewers across ${new Set(selectedReviewers.map((r) => r.faculty.toString())).size} different faculties and dispatched AI review job`
+        `Assigned proposal ${proposalId} to 1 human reviewer and dispatched AI review job`
       );
 
       res.status(200).json({
         success: true,
-        message: `Proposal assigned to ${selectedReviewers.length} reviewers successfully`,
+        message: `Proposal assigned to 1 reviewer successfully`,
         data: {
-          reviewers: selectedReviewers.map((r) => ({
-            id: r._id,
-            name: r.name,
-            email: r.email,
-            faculty: r.faculty,
-            pendingReviews: r.pendingReviewsCount,
-          })),
+          reviewer: {
+            id: selectedReviewer._id,
+            name: selectedReviewer.name,
+            email: selectedReviewer.email,
+            faculty: selectedReviewer.faculty,
+            totalReviews: selectedReviewer.totalReviewsCount,
+          },
           dueDate,
         },
       });
