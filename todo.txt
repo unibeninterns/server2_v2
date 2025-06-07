@@ -1,6 +1,8 @@
 FIXME : Proposal page on frontend is not displaying needs revision when a proposal is flagged for discrepancy. 
 
-TODO : Update cluster maps with new and full clusters...
+TODO : Lots of test for the whole ecosystem. 
+
+TODO : Learn unit testing. 
 
 TODO : Create versioning Releases on github
 
