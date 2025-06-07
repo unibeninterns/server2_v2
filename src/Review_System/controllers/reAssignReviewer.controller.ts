@@ -488,6 +488,7 @@ class ReassignReviewController {
         ? submitterFaculty
         : (submitterFaculty as any).title;
 
+    // Remove parenthetical codes and trim
     const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
 
     let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
@@ -505,11 +506,20 @@ class ReassignReviewController {
     }
 
     const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
-    const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
-      title.split('(')[0].trim()
-    );
 
-    const regexPattern = eligibleFacultyKeywords
+    const eligibleKeywordsForRegex = eligibleFaculties
+      .map((canonicalTitle) => {
+        for (const keyword in this.keywordToFacultyMap) {
+          if (this.keywordToFacultyMap[keyword] === canonicalTitle) {
+            return keyword;
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Build a regex to match any of the keywords in the Faculty title
+    const regexPattern = eligibleKeywordsForRegex
       .map((keyword) => `.*${keyword}.*`)
       .join('|');
     const facultyTitleRegex = new RegExp(regexPattern, 'i');
@@ -518,7 +528,7 @@ class ReassignReviewController {
       title: { $regex: facultyTitleRegex },
     }).select('_id');
 
-    const facultyIdList = facultyIds.map((f) => f._id.toString());
+    const facultyIdList = facultyIds.map((f) => f._id);
 
     return facultyIdList.includes(reviewerFacultyId.toString());
   }
@@ -538,10 +548,12 @@ class ReassignReviewController {
         ? submitterFaculty
         : (submitterFaculty as any).title;
 
+    // Remove parenthetical codes and trim
     const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
 
     let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
 
+    // Find the canonical faculty title using keywords
     for (const keyword in this.keywordToFacultyMap) {
       if (cleanedFacultyTitle.includes(keyword)) {
         canonicalFacultyTitle = this.keywordToFacultyMap[keyword];
@@ -554,11 +566,20 @@ class ReassignReviewController {
     }
 
     const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
-    const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
-      title.split('(')[0].trim()
-    );
 
-    const regexPattern = eligibleFacultyKeywords
+    const eligibleKeywordsForRegex = eligibleFaculties
+      .map((canonicalTitle) => {
+        for (const keyword in this.keywordToFacultyMap) {
+          if (this.keywordToFacultyMap[keyword] === canonicalTitle) {
+            return keyword;
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Build a regex to match any of the keywords in the Faculty title
+    const regexPattern = eligibleKeywordsForRegex
       .map((keyword) => `.*${keyword}.*`)
       .join('|');
     const facultyTitleRegex = new RegExp(regexPattern, 'i');
@@ -574,7 +595,7 @@ class ReassignReviewController {
       proposal: proposalId,
     }).distinct('reviewer');
 
-    // Find eligible reviewers
+    // Find eligible reviewers with comprehensive workload tracking
     const eligibleReviewers = await User.aggregate([
       {
         $match: {
@@ -591,20 +612,30 @@ class ReassignReviewController {
       },
       {
         $lookup: {
-          from: 'Reviews',
+          from: 'reviews', // Collection name is typically lowercase and plural
           localField: '_id',
           foreignField: 'reviewer',
-          as: 'activeReviews',
+          as: 'allReviews',
         },
       },
       {
         $addFields: {
+          totalReviewsCount: { $size: '$allReviews' },
           pendingReviewsCount: {
             $size: {
               $filter: {
-                input: '$activeReviews',
+                input: '$allReviews',
                 as: 'review',
                 cond: { $ne: ['$$review.status', 'completed'] },
+              },
+            },
+          },
+          discrepancyCount: {
+            $size: {
+              $filter: {
+                input: '$allReviews',
+                as: 'review',
+                cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
               },
             },
           },
@@ -612,16 +643,60 @@ class ReassignReviewController {
       },
       {
         $sort: {
-          pendingReviewsCount: 1,
-          _id: 1,
+          totalReviewsCount: 1, // Primary sort by total workload
+          pendingReviewsCount: 1, // Secondary sort by pending workload
+          discrepancyCount: 1, // Tertiary sort by discrepancy handling
+          _id: 1, // Quaternary sort for consistency
         },
-      },
-      {
-        $limit: 1,
       },
     ]);
 
-    return eligibleReviewers.length > 0 ? eligibleReviewers[0] : null;
+    const MAX_REVIEWS_PER_REVIEWER = 10;
+
+    // Function to select a reviewer based on least workload, then randomization
+    const selectReviewerByWorkload = (reviewers: any[]): any => {
+      if (reviewers.length === 0) {
+        return undefined;
+      }
+
+      // Sort by totalReviewsCount to find the least workload
+      reviewers.sort((a, b) => a.totalReviewsCount - b.totalReviewsCount);
+
+      const minReviews = reviewers[0].totalReviewsCount;
+      const leastWorkloadReviewers = reviewers.filter(
+        (r) => r.totalReviewsCount === minReviews
+      );
+
+      // Randomly select from those with the least workload
+      const randomIndex = Math.floor(
+        Math.random() * leastWorkloadReviewers.length
+      );
+      return leastWorkloadReviewers[randomIndex];
+    };
+
+    // Filter reviewers who have less than the maximum allowed reviews
+    const reviewersUnderLimit = eligibleReviewers.filter(
+      (reviewer) => reviewer.totalReviewsCount < MAX_REVIEWS_PER_REVIEWER
+    );
+
+    let selectedReviewer;
+
+    if (reviewersUnderLimit.length > 0) {
+      // If there are reviewers under the limit, prioritize by least workload
+      selectedReviewer = selectReviewerByWorkload(reviewersUnderLimit);
+      logger.info(
+        `Selected reviewer ${selectedReviewer?._id} (under limit) with ${selectedReviewer?.totalReviewsCount} reviews.`
+      );
+    } else if (eligibleReviewers.length > 0) {
+      // If all reviewers have reached or exceeded the limit,
+      // still prioritize by least workload among them
+      selectedReviewer = selectReviewerByWorkload(eligibleReviewers);
+      logger.info(
+        `Selected reviewer ${selectedReviewer?._id} (over limit) with ${selectedReviewer?.totalReviewsCount} reviews.`
+      );
+    }
+
+    return selectedReviewer || null;
   }
 
   // Helper method to find reconciliation reviewer (similar to reconciliation controller logic)
