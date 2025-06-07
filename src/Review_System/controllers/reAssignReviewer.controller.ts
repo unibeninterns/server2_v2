@@ -318,7 +318,7 @@ class ReassignReviewController {
           );
         }
       } else {
-        // Auto-assign reconciliation reviewer using same logic as reconciliation controller
+        // Auto-assign reconciliation reviewer using fixed logic
         newReviewer = await this.findReconciliationReviewer(
           proposal,
           proposalId
@@ -714,10 +714,12 @@ class ReassignReviewController {
         ? submitterFaculty
         : (submitterFaculty as any).title;
 
+    // Remove parenthetical codes and trim
     const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
 
     let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
 
+    // Find the canonical faculty title using keywords
     for (const keyword in this.keywordToFacultyMap) {
       if (cleanedFacultyTitle.includes(keyword)) {
         canonicalFacultyTitle = this.keywordToFacultyMap[keyword];
@@ -730,11 +732,20 @@ class ReassignReviewController {
     }
 
     const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
-    const eligibleFacultyKeywords = eligibleFaculties.map((title) =>
-      title.split('(')[0].trim()
-    );
 
-    const regexPattern = eligibleFacultyKeywords
+    const eligibleKeywordsForRegex = eligibleFaculties
+      .map((canonicalTitle) => {
+        for (const keyword in this.keywordToFacultyMap) {
+          if (this.keywordToFacultyMap[keyword] === canonicalTitle) {
+            return keyword;
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Build a regex to match any of the keywords in the Faculty title
+    const regexPattern = eligibleKeywordsForRegex
       .map((keyword) => `.*${keyword}.*`)
       .join('|');
     const facultyTitleRegex = new RegExp(regexPattern, 'i');
@@ -745,13 +756,13 @@ class ReassignReviewController {
 
     const facultyIdList = facultyIds.map((f) => f._id);
 
-    // Get existing reviewers for this proposal
+    // Get existing reviewers for this proposal (only human reviews)
     const existingReviewerIds = await Review.find({
       proposal: proposalId,
       reviewType: ReviewType.HUMAN,
     }).distinct('reviewer');
 
-    // First, try to find eligible reconciliation reviewer with good history
+    // First, try to find eligible reconciliation reviewer with completed reviews (experience)
     let eligibleReviewer = await User.aggregate([
       {
         $match: {
@@ -768,18 +779,19 @@ class ReassignReviewController {
       },
       {
         $lookup: {
-          from: 'Reviews',
+          from: 'reviews', // Fixed: lowercase collection name
           localField: '_id',
           foreignField: 'reviewer',
-          as: 'activeReviews',
+          as: 'allReviews',
         },
       },
       {
         $addFields: {
+          totalReviewsCount: { $size: '$allReviews' },
           pendingReviewsCount: {
             $size: {
               $filter: {
-                input: '$activeReviews',
+                input: '$allReviews',
                 as: 'review',
                 cond: { $ne: ['$$review.status', 'completed'] },
               },
@@ -788,7 +800,7 @@ class ReassignReviewController {
           discrepancyCount: {
             $size: {
               $filter: {
-                input: '$activeReviews',
+                input: '$allReviews',
                 as: 'review',
                 cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
               },
@@ -797,7 +809,7 @@ class ReassignReviewController {
           completedReviewsCount: {
             $size: {
               $filter: {
-                input: '$activeReviews',
+                input: '$allReviews',
                 as: 'review',
                 cond: { $eq: ['$$review.status', 'completed'] },
               },
@@ -807,13 +819,15 @@ class ReassignReviewController {
       },
       {
         $match: {
-          completedReviewsCount: { $gt: 0 },
+          completedReviewsCount: { $gt: 0 }, // Prioritize experienced reviewers
         },
       },
       {
         $sort: {
-          discrepancyCount: 1,
-          pendingReviewsCount: 1,
+          totalReviewsCount: 1, // Primary sort by total workload
+          discrepancyCount: 1, // Secondary sort by reconciliation experience
+          pendingReviewsCount: 1, // Tertiary sort by pending workload
+          _id: 1, // Quaternary sort for consistency
         },
       },
       {
@@ -821,7 +835,7 @@ class ReassignReviewController {
       },
     ]);
 
-    // If no reviewer found with completed reviews, find any available reviewer
+    // If no experienced reviewer found, find any available reviewer
     if (eligibleReviewer.length === 0) {
       eligibleReviewer = await User.aggregate([
         {
@@ -839,20 +853,30 @@ class ReassignReviewController {
         },
         {
           $lookup: {
-            from: 'Reviews',
+            from: 'reviews', // Fixed: lowercase collection name
             localField: '_id',
             foreignField: 'reviewer',
-            as: 'activeReviews',
+            as: 'allReviews',
           },
         },
         {
           $addFields: {
+            totalReviewsCount: { $size: '$allReviews' },
             pendingReviewsCount: {
               $size: {
                 $filter: {
-                  input: '$activeReviews',
+                  input: '$allReviews',
                   as: 'review',
                   cond: { $ne: ['$$review.status', 'completed'] },
+                },
+              },
+            },
+            discrepancyCount: {
+              $size: {
+                $filter: {
+                  input: '$allReviews',
+                  as: 'review',
+                  cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
                 },
               },
             },
@@ -860,7 +884,10 @@ class ReassignReviewController {
         },
         {
           $sort: {
-            pendingReviewsCount: 1,
+            totalReviewsCount: 1, // Primary sort by total workload
+            pendingReviewsCount: 1, // Secondary sort by pending workload
+            discrepancyCount: 1, // Tertiary sort by reconciliation experience
+            _id: 1, // Quaternary sort for consistency
           },
         },
         {
