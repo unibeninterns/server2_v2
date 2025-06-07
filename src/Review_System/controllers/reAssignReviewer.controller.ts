@@ -1,15 +1,10 @@
 /* eslint-disable max-lines */
 import { Request, Response } from 'express';
-import User, { UserRole, IUser } from '../../model/user.model';
+import User, { UserRole } from '../../model/user.model';
 import Proposal, {
-  IProposal,
   ProposalStatus,
 } from '../../Proposal_Submission/models/proposal.model';
-import Review, {
-  ReviewStatus,
-  ReviewType,
-  IReview,
-} from '../models/review.model';
+import Review, { ReviewStatus, ReviewType } from '../models/review.model';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
@@ -21,6 +16,20 @@ interface IReassignReviewResponse {
   success: boolean;
   message?: string;
   data?: any;
+}
+
+interface IEligibleReviewersResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    eligibleReviewers: any[];
+    proposalInfo: {
+      id: string;
+      title: string;
+      submitterFaculty: string;
+      cluster: string[];
+    };
+  };
 }
 
 class ReassignReviewController {
@@ -126,38 +135,21 @@ class ReassignReviewController {
   };
 
   // Reassign regular review to another reviewer
+  // Updated reassignRegularReview method
   reassignRegularReview = asyncHandler(
     async (
-      req: Request<{ reviewId: string }, {}, { newReviewerId?: string }>,
+      req: Request<
+        { proposalId: string },
+        {},
+        { newReviewerId?: string; reviewId?: string }
+      >,
       res: Response<IReassignReviewResponse>
     ): Promise<void> => {
-      const { reviewId } = req.params;
-      const { newReviewerId } = req.body;
+      const { proposalId } = req.params;
+      const { newReviewerId, reviewId } = req.body;
 
-      // Find the existing review
-      const existingReview =
-        await Review.findById(reviewId).populate('proposal');
-
-      if (!existingReview) {
-        throw new NotFoundError('Review not found');
-      }
-
-      // Check if review can be reassigned (not completed yet)
-      if (existingReview.status === ReviewStatus.COMPLETED) {
-        throw new BadRequestError('Cannot reassign a completed review');
-      }
-
-      // Ensure it's a human review (not AI or reconciliation)
-      if (existingReview.reviewType !== ReviewType.HUMAN) {
-        throw new BadRequestError(
-          'Can only reassign human reviews using this endpoint'
-        );
-      }
-
-      // Get proposal with faculty information
-      const proposal = await Proposal.findById(
-        existingReview.proposal
-      ).populate({
+      // Find the proposal first
+      const proposal = await Proposal.findById(proposalId).populate({
         path: 'submitter',
         select: 'faculty',
         populate: { path: 'faculty', select: 'title code' },
@@ -165,6 +157,39 @@ class ReassignReviewController {
 
       if (!proposal) {
         throw new NotFoundError('Proposal not found');
+      }
+
+      let existingReview;
+
+      if (reviewId) {
+        // If specific reviewId is provided, find that review
+        existingReview = await Review.findOne({
+          _id: reviewId,
+          proposal: proposalId,
+          reviewType: ReviewType.HUMAN,
+        });
+
+        if (!existingReview) {
+          throw new NotFoundError('Review not found for this proposal');
+        }
+      } else {
+        // If no reviewId provided, find any in-progress human review for this proposal
+        existingReview = await Review.findOne({
+          proposal: proposalId,
+          reviewType: ReviewType.HUMAN,
+          status: { $ne: ReviewStatus.COMPLETED },
+        });
+
+        if (!existingReview) {
+          throw new NotFoundError(
+            'No reassignable review found for this proposal'
+          );
+        }
+      }
+
+      // Check if review can be reassigned (not completed yet)
+      if (existingReview.status === ReviewStatus.COMPLETED) {
+        throw new BadRequestError('Cannot reassign a completed review');
       }
 
       let newReviewer;
@@ -180,7 +205,7 @@ class ReassignReviewController {
         const isEligible = await this.verifyReviewerEligibility(
           newReviewerId,
           proposal,
-          existingReview.proposal.toString()
+          proposalId
         );
 
         if (!isEligible) {
@@ -192,7 +217,7 @@ class ReassignReviewController {
         // Auto-assign to best available reviewer in the same cluster
         newReviewer = await this.findBestReviewerInCluster(
           proposal,
-          existingReview.proposal.toString()
+          proposalId
         );
 
         if (!newReviewer) {
@@ -227,14 +252,15 @@ class ReassignReviewController {
       }
 
       logger.info(
-        `Reassigned review ${reviewId} from ${oldReviewer?.name} to ${newReviewer.name}`
+        `Reassigned review ${existingReview._id} from ${oldReviewer?.name} to ${newReviewer.name} for proposal ${proposalId}`
       );
 
       res.status(200).json({
         success: true,
         message: 'Review reassigned successfully',
         data: {
-          reviewId,
+          proposalId,
+          reviewId: existingReview._id,
           oldReviewer: {
             id: oldReviewer?._id,
             name: oldReviewer?.name,
@@ -929,6 +955,222 @@ class ReassignReviewController {
 
     return date;
   }
+
+  getEligibleReviewers = asyncHandler(
+    async (
+      req: Request<{ proposalId: string }>,
+      res: Response<IEligibleReviewersResponse>
+    ): Promise<void> => {
+      const { proposalId } = req.params;
+
+      // Find the proposal with submitter faculty information
+      const proposal = await Proposal.findById(proposalId).populate({
+        path: 'submitter',
+        select: 'faculty name',
+        populate: { path: 'faculty', select: 'title code' },
+      });
+
+      if (!proposal) {
+        throw new NotFoundError('Proposal not found');
+      }
+
+      const submitterFaculty = (proposal.submitter as any).faculty;
+      if (!submitterFaculty) {
+        throw new BadRequestError('Proposal submitter has no faculty assigned');
+      }
+
+      const rawFacultyTitle =
+        typeof submitterFaculty === 'string'
+          ? submitterFaculty
+          : (submitterFaculty as any).title;
+
+      // Remove parenthetical codes and trim
+      const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
+
+      let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
+
+      // Find the canonical faculty title using keywords
+      for (const keyword in this.keywordToFacultyMap) {
+        if (cleanedFacultyTitle.includes(keyword)) {
+          canonicalFacultyTitle = this.keywordToFacultyMap[keyword];
+          break;
+        }
+      }
+
+      if (!canonicalFacultyTitle) {
+        throw new BadRequestError('No cluster found for the proposal faculty');
+      }
+
+      const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
+
+      const eligibleKeywordsForRegex = eligibleFaculties
+        .map((canonicalTitle) => {
+          for (const keyword in this.keywordToFacultyMap) {
+            if (this.keywordToFacultyMap[keyword] === canonicalTitle) {
+              return keyword;
+            }
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      // Build a regex to match any of the keywords in the Faculty title
+      const regexPattern = eligibleKeywordsForRegex
+        .map((keyword) => `.*${keyword}.*`)
+        .join('|');
+      const facultyTitleRegex = new RegExp(regexPattern, 'i');
+
+      const facultyIds = await Faculty.find({
+        title: { $regex: facultyTitleRegex },
+      }).select('_id');
+
+      const facultyIdList = facultyIds.map((f) => f._id);
+
+      // Get existing reviewers for this proposal
+      const existingReviewerIds = await Review.find({
+        proposal: proposalId,
+      }).distinct('reviewer');
+
+      // Find eligible reviewers with comprehensive workload tracking
+      const eligibleReviewers = await User.aggregate([
+        {
+          $match: {
+            faculty: { $in: facultyIdList },
+            role: UserRole.REVIEWER,
+            isActive: true,
+            invitationStatus: { $in: ['accepted', 'added'] },
+            _id: {
+              $nin: existingReviewerIds
+                .filter((id) => id !== null)
+                .map((id) => new mongoose.Types.ObjectId(id)),
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: 'reviews',
+            localField: '_id',
+            foreignField: 'reviewer',
+            as: 'allReviews',
+          },
+        },
+        {
+          $lookup: {
+            from: 'faculties',
+            localField: 'faculty',
+            foreignField: '_id',
+            as: 'facultyDetails',
+          },
+        },
+        {
+          $lookup: {
+            from: 'departments',
+            localField: 'department',
+            foreignField: '_id',
+            as: 'departmentDetails',
+          },
+        },
+        {
+          $addFields: {
+            totalReviewsCount: { $size: '$allReviews' },
+            pendingReviewsCount: {
+              $size: {
+                $filter: {
+                  input: '$allReviews',
+                  as: 'review',
+                  cond: { $ne: ['$$review.status', 'completed'] },
+                },
+              },
+            },
+            completedReviewsCount: {
+              $size: {
+                $filter: {
+                  input: '$allReviews',
+                  as: 'review',
+                  cond: { $eq: ['$$review.status', 'completed'] },
+                },
+              },
+            },
+            discrepancyCount: {
+              $size: {
+                $filter: {
+                  input: '$allReviews',
+                  as: 'review',
+                  cond: { $eq: ['$$review.reviewType', 'reconciliation'] },
+                },
+              },
+            },
+            facultyTitle: { $arrayElemAt: ['$facultyDetails.title', 0] },
+            departmentTitle: { $arrayElemAt: ['$departmentDetails.title', 0] },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            email: 1,
+            academicTitle: 1,
+            phoneNumber: 1,
+            facultyTitle: 1,
+            departmentTitle: 1,
+            totalReviewsCount: 1,
+            pendingReviewsCount: 1,
+            completedReviewsCount: 1,
+            discrepancyCount: 1,
+            lastLogin: 1,
+            createdAt: 1,
+            // Calculate completion rate
+            completionRate: {
+              $cond: {
+                if: { $gt: ['$totalReviewsCount', 0] },
+                then: {
+                  $round: [
+                    {
+                      $multiply: [
+                        {
+                          $divide: [
+                            '$completedReviewsCount',
+                            '$totalReviewsCount',
+                          ],
+                        },
+                        100,
+                      ],
+                    },
+                    0,
+                  ],
+                },
+                else: 0,
+              },
+            },
+          },
+        },
+        {
+          $sort: {
+            totalReviewsCount: 1, // Primary sort by total workload
+            pendingReviewsCount: 1, // Secondary sort by pending workload
+            name: 1, // Tertiary sort by name for consistency
+          },
+        },
+      ]);
+
+      logger.info(
+        `Retrieved ${eligibleReviewers.length} eligible reviewers for proposal ${proposalId}`
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          eligibleReviewers,
+          proposalInfo: {
+            id: proposalId,
+            title: proposal.projectTitle || 'Research Proposal',
+            submitterFaculty: rawFacultyTitle,
+            cluster: eligibleFaculties,
+          },
+        },
+      });
+    }
+  );
 }
 
 export default new ReassignReviewController();

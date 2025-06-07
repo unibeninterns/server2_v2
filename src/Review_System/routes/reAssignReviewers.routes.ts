@@ -14,16 +14,10 @@ const proposalIdSchema = z.object({
   }),
 });
 
-const reviewIdSchema = z.object({
-  params: z.object({
-    id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid review ID format'),
-  }),
-});
-
 router.put(
-  '/regular/:reviewId',
+  '/regular/:proposalId',
   authenticateAdminToken,
-  validateRequest(reviewIdSchema),
+  validateRequest(proposalIdSchema),
   ReassignReviewController.reassignRegularReview
 );
 
@@ -32,6 +26,13 @@ router.put(
   authenticateAdminToken,
   validateRequest(proposalIdSchema),
   ReassignReviewController.reassignReconciliationReview
+);
+
+router.get(
+  '/eligible-reviewers/:proposalId',
+  authenticateAdminToken,
+  validateRequest(proposalIdSchema),
+  ReassignReviewController.getEligibleReviewers
 );
 
 export default router;
