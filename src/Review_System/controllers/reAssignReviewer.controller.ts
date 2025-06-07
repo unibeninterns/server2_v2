@@ -15,8 +15,7 @@ import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import { NotFoundError, BadRequestError } from '../../utils/customErrors';
-import { Types } from 'mongoose';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 
 interface IReassignReviewResponse {
   success: boolean;
@@ -604,9 +603,9 @@ class ReassignReviewController {
           isActive: true,
           invitationStatus: { $in: ['accepted', 'added'] },
           _id: {
-            $nin: existingReviewerIds.map(
-              (id) => new mongoose.Types.ObjectId(id)
-            ),
+            $nin: existingReviewerIds
+              .filter((id) => id !== null)
+              .map((id) => new mongoose.Types.ObjectId(id)),
           },
         },
       },
@@ -771,9 +770,9 @@ class ReassignReviewController {
           isActive: true,
           invitationStatus: { $in: ['accepted', 'added'] },
           _id: {
-            $nin: existingReviewerIds.map(
-              (id) => new mongoose.Types.ObjectId(id)
-            ),
+            $nin: existingReviewerIds
+              .filter((id) => id !== null)
+              .map((id) => new mongoose.Types.ObjectId(id)),
           },
         },
       },
@@ -845,9 +844,9 @@ class ReassignReviewController {
             isActive: true,
             invitationStatus: { $in: ['accepted', 'added'] },
             _id: {
-              $nin: existingReviewerIds.map(
-                (id) => new mongoose.Types.ObjectId(id)
-              ),
+              $nin: existingReviewerIds
+                .filter((id) => id !== null)
+                .map((id) => new mongoose.Types.ObjectId(id)),
             },
           },
         },
