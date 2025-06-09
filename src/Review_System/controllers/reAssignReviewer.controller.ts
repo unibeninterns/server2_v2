@@ -11,6 +11,7 @@ import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
 import { NotFoundError, BadRequestError } from '../../utils/customErrors';
 import mongoose, { Types } from 'mongoose';
+import agenda from '../../config/agenda'; // Import agenda
 
 interface IReassignReviewResponse {
   success: boolean;
@@ -157,6 +158,19 @@ class ReassignReviewController {
 
       if (!proposal) {
         throw new NotFoundError('Proposal not found');
+      }
+
+      // Check if an AI review exists for this proposal, if not, create one
+      const existingAIReview = await Review.findOne({
+        proposal: proposalId,
+        reviewType: ReviewType.AI,
+      });
+
+      if (!existingAIReview) {
+        logger.info(
+          `No existing AI review found for proposal ${proposalId}. Dispatching job to generate one.`
+        );
+        await agenda.now('generate AI review', { proposalId: proposalId });
       }
 
       let existingReview;
