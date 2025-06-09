@@ -10,6 +10,7 @@ import { NotFoundError } from '../../utils/customErrors';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service'; // Import emailService
 import { reviewProposal } from 'uniben-ai-proposal-review-cli'; // Import the reviewProposal function
+import agenda from '../../config/agenda'; // Import the agenda instance
 
 // Generate AI review for a proposal
 export const generateAIReviewForProposal = async (
@@ -59,6 +60,12 @@ export const generateAIReviewForProposal = async (
       data: completedAIReview,
     };
   } catch (error: any) {
+    await agenda.now('generate AI review', {
+          proposalId: proposalId,
+        });
+    logger.info(
+      `Dispatched failed AI review job for proposal ${proposalId} to Agenda`
+    );
     // Catch errors during the process
     logger.error(
       `Error generating AI review for proposal ${proposalId}:`,
