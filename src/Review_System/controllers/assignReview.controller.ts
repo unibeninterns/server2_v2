@@ -110,49 +110,85 @@ class AssignReviewController {
           'Faculty of Dentistry',
           'Faculty of Medicine',
           'Faculty of Basic Medical Sciences',
+          'School of Basic Clinical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
+          'Institute of Child Health',
         ],
         'Faculty of Dentistry': [
           'Faculty of Pharmacy',
           'Faculty of Medicine',
           'Faculty of Basic Medical Sciences',
+          'School of Basic Clinical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
+          'Institute of Child Health',
         ],
         'Faculty of Medicine': [
           'Faculty of Pharmacy',
           'Faculty of Dentistry',
           'Faculty of Basic Medical Sciences',
+          'School of Basic Clinical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
+          'Institute of Child Health',
         ],
         'Faculty of Basic Medical Sciences': [
           'Faculty of Pharmacy',
           'Faculty of Dentistry',
           'Faculty of Medicine',
+          'School of Basic Clinical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
+          'Institute of Child Health',
+        ],
+        'School of Basic Clinical Sciences': [
+          'Faculty of Pharmacy',
+          'Faculty of Dentistry',
+          'Faculty of Medicine',
+          'Faculty of Basic Medical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
+          'Institute of Child Health',
+        ],
+        'Centre of Excellence in Reproductive Health Innovation': [
+          'Faculty of Pharmacy',
+          'Faculty of Dentistry',
+          'Faculty of Medicine',
+          'Faculty of Basic Medical Sciences',
+          'School of Basic Clinical Sciences',
+          'Institute of Child Health',
+        ],
+        'Institute of Child Health': [
+          'Faculty of Pharmacy',
+          'Faculty of Dentistry',
+          'Faculty of Medicine',
+          'Faculty of Basic Medical Sciences',
+          'School of Basic Clinical Sciences',
+          'Centre of Excellence in Reproductive Health Innovation',
         ],
 
         // Cluster 3
         'Faculty of Management Sciences': [
-          'Faculty of Education',
+          'Institute of Education',
           'Faculty of Social Sciences',
           'Faculty of Vocational Education',
         ],
-        'Faculty of Education': [
+        'Institute of Education': [
           'Faculty of Management Sciences',
           'Faculty of Social Sciences',
           'Faculty of Vocational Education',
         ],
         'Faculty of Social Sciences': [
           'Faculty of Management Sciences',
-          'Faculty of Education',
+          'Institute of Education',
           'Faculty of Vocational Education',
         ],
         'Faculty of Vocational Education': [
           'Faculty of Management Sciences',
-          'Faculty of Education',
+          'Institute of Education',
           'Faculty of Social Sciences',
         ],
 
         // Cluster 4
-        'Faculty of Law': ['Faculty of Arts', 'Institute of Education'],
-        'Faculty of Arts': ['Faculty of Law', 'Institute of Education'],
-        'Institute of Education': ['Faculty of Law', 'Faculty of Arts'],
+        'Faculty of Law': ['Faculty of Arts', 'Faculty of Education'],
+        'Faculty of Arts': ['Faculty of Law', 'Faculty of Education'],
+        'Faculty of Education': ['Faculty of Law', 'Faculty of Arts'],
 
         // Cluster 5
         'Faculty of Engineering': [
@@ -180,6 +216,10 @@ class AssignReviewController {
         Dentistry: 'Faculty of Dentistry',
         Medicine: 'Faculty of Medicine',
         'Basic Medical Sciences': 'Faculty of Basic Medical Sciences',
+        'Basic Clinical Sciences': 'School of Basic Clinical Sciences',
+        'Reproductive Health Innovation':
+          'Centre of Excellence in Reproductive Health Innovation',
+        'Child Health': 'Institute of Child Health',
         'Management Sciences': 'Faculty of Management Sciences',
         Education: 'Faculty of Education',
         'Social Sciences': 'Faculty of Social Sciences',
@@ -246,14 +286,16 @@ class AssignReviewController {
         return;
       }
 
-      const eligibleKeywordsForRegex = eligibleFaculties.map(canonicalTitle => {
-        for (const keyword in keywordToFacultyMap) {
-          if (keywordToFacultyMap[keyword] === canonicalTitle) {
-            return keyword;
+      const eligibleKeywordsForRegex = eligibleFaculties
+        .map((canonicalTitle) => {
+          for (const keyword in keywordToFacultyMap) {
+            if (keywordToFacultyMap[keyword] === canonicalTitle) {
+              return keyword;
+            }
           }
-        }
-        return null; // Should not happen if maps are consistent
-      }).filter(Boolean); // Remove nulls
+          return null; // Should not happen if maps are consistent
+        })
+        .filter(Boolean); // Remove nulls
 
       // Build a regex to match any of the keywords in the Faculty title
       const regexPattern = eligibleKeywordsForRegex
