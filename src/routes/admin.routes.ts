@@ -12,7 +12,7 @@ import proposalReviewsRoutes from '../Review_System/routes/proposalReviews.route
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
-const adminRateLimiter = rateLimiter(100, 60 * 60 * 1000); // 100 requests per hour
+const adminRateLimiter = rateLimiter(300, 60 * 60 * 1000); // 100 requests per hour
 
 // Get all proposals (with pagination and filtering)
 router.get(

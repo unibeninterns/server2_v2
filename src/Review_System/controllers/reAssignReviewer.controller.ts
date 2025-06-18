@@ -160,7 +160,8 @@ class ReassignReviewController {
         throw new NotFoundError('Proposal not found');
       }
 
-      // Check if an AI review exists for this proposal, if not, create one
+      // Check if an AI review exists for this proposal, if not create one
+      // If exists but has zero total score, regenerate it
       const existingAIReview = await Review.findOne({
         proposal: proposalId,
         reviewType: ReviewType.AI,
@@ -171,6 +172,20 @@ class ReassignReviewController {
           `No existing AI review found for proposal ${proposalId}. Dispatching job to generate one.`
         );
         await agenda.now('generate AI review', { proposalId: proposalId });
+      } else if (existingAIReview.totalScore === 0) {
+        logger.info(
+          `Existing AI review found for proposal ${proposalId} but has zero score. Regenerating AI review.`
+        );
+
+        // Delete the existing AI review with zero score
+        await Review.findByIdAndDelete(existingAIReview._id);
+
+        // Generate a new AI review
+        await agenda.now('generate AI review', { proposalId: proposalId });
+      } else {
+        logger.info(
+          `Valid AI review already exists for proposal ${proposalId} with score ${existingAIReview.totalScore}`
+        );
       }
 
       let existingReview;
@@ -502,6 +517,9 @@ class ReassignReviewController {
       !reviewer.isActive ||
       !['accepted', 'added'].includes(reviewer.invitationStatus)
     ) {
+      logger.warn(
+        `Reviewer ${reviewerId} is not active or has an invalid invitation status and cannot be considered eligible.`
+      );
       return false;
     }
 
@@ -513,6 +531,9 @@ class ReassignReviewController {
     });
 
     if (existingReview) {
+      logger.warn(
+        `Reviewer ${reviewerId} has already reviewed this proposal and cannot be considered eligible for reconciliation.`
+      );
       return false;
     }
 
