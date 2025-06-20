@@ -6,6 +6,7 @@ import Proposal, {
 } from '../../Proposal_Submission/models/proposal.model';
 import Review, { ReviewStatus, ReviewType } from '../models/review.model';
 import Faculty from '../../Proposal_Submission/models/faculty.model';
+import Department from '../../Proposal_Submission/models/department.model';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import emailService from '../../services/email.service';
@@ -39,6 +40,8 @@ interface FacultyDocument {
 }
 
 class ReassignReviewController {
+  private readonly BYPASS_USER_ID = '68557cdbc6540899e1dc934f';
+
   private clusterMap = {
     // Cluster 1
     'Faculty of Agriculture': [
@@ -519,6 +522,43 @@ class ReassignReviewController {
       `Verifying eligibility for reviewer ${reviewerId} on proposal ${proposalId}`
     );
 
+    // Bypass faculty cluster checks for special user
+    if (reviewerId === this.BYPASS_USER_ID) {
+      logger.info(
+        `Bypass user ${reviewerId} detected - checking basic eligibility only`
+      );
+
+      // Check if reviewer is active and has reviewer role
+      const reviewer = await User.findById(reviewerId);
+      if (
+        !reviewer ||
+        reviewer.role !== UserRole.REVIEWER ||
+        !reviewer.isActive ||
+        !['accepted', 'added'].includes(reviewer.invitationStatus)
+      ) {
+        logger.warn(
+          `Bypass user ${reviewerId} failed basic eligibility checks`
+        );
+        return false;
+      }
+
+      // Check if reviewer is already assigned to this proposal
+      const existingAssignment = await Review.findOne({
+        proposal: proposalId,
+        reviewer: reviewerId,
+      });
+
+      if (existingAssignment) {
+        logger.warn(
+          `Bypass user ${reviewerId} already assigned to proposal ${proposalId}`
+        );
+        return false;
+      }
+
+      logger.info(`Bypass user ${reviewerId} is eligible`);
+      return true;
+    }
+
     // Check if reviewer is active and has reviewer role
     const reviewer = await User.findById(reviewerId);
     if (
@@ -574,6 +614,44 @@ class ReassignReviewController {
     logger.info(
       `Verifying reconciliation eligibility for reviewer ${reviewerId} on proposal ${proposalId}`
     );
+
+    // Bypass faculty cluster checks for special user
+    if (reviewerId === this.BYPASS_USER_ID) {
+      logger.info(
+        `Bypass user ${reviewerId} detected - checking basic eligibility only`
+      );
+
+      // Check if reviewer is active and has reviewer role
+      const reviewer = await User.findById(reviewerId);
+      if (
+        !reviewer ||
+        reviewer.role !== UserRole.REVIEWER ||
+        !reviewer.isActive ||
+        !['accepted', 'added'].includes(reviewer.invitationStatus)
+      ) {
+        logger.warn(
+          `Bypass user ${reviewerId} failed basic eligibility checks`
+        );
+        return false;
+      }
+
+      // Check if reviewer has already reviewed this proposal
+      const existingReview = await Review.findOne({
+        proposal: proposalId,
+        reviewer: reviewerId,
+        reviewType: ReviewType.HUMAN,
+      });
+
+      if (existingReview) {
+        logger.warn(
+          `Bypass user ${reviewerId} has already reviewed this proposal`
+        );
+        return false;
+      }
+
+      logger.info(`Bypass user ${reviewerId} is eligible for reconciliation`);
+      return true;
+    }
 
     // Check if reviewer is active and has reviewer role
     const reviewer = await User.findById(reviewerId);
@@ -1116,6 +1194,74 @@ class ReassignReviewController {
         throw new NotFoundError('Proposal not found');
       }
 
+      // Get existing reviewers for this proposal
+      const existingReviewerIds = await Review.find({
+        proposal: proposalId,
+      }).distinct('reviewer');
+
+      // Check if bypass user exists and is not already assigned
+      const bypassUser = await User.findById(this.BYPASS_USER_ID);
+      const bypassUserAlreadyAssigned = existingReviewerIds
+        .filter((id) => id !== null)
+        .map((id) => id.toString())
+        .includes(this.BYPASS_USER_ID);
+
+      let bypassUserEligible = null;
+
+      if (
+        bypassUser &&
+        !bypassUserAlreadyAssigned &&
+        bypassUser.role === UserRole.REVIEWER &&
+        bypassUser.isActive &&
+        ['accepted', 'added'].includes(bypassUser.invitationStatus)
+      ) {
+        // Get bypass user's review statistics
+        const bypassUserReviews = await Review.find({
+          reviewer: this.BYPASS_USER_ID,
+        });
+        const totalReviewsCount = bypassUserReviews.length;
+        const pendingReviewsCount = bypassUserReviews.filter(
+          (r) => r.status !== ReviewStatus.COMPLETED
+        ).length;
+        const completedReviewsCount = bypassUserReviews.filter(
+          (r) => r.status === ReviewStatus.COMPLETED
+        ).length;
+        const discrepancyCount = bypassUserReviews.filter(
+          (r) => r.reviewType === ReviewType.RECONCILIATION
+        ).length;
+
+        // Get faculty and department details
+        const facultyDetails = await Faculty.findById(bypassUser.faculty);
+        const departmentDetails = bypassUser.department
+          ? await Department.findById(bypassUser.department)
+          : null;
+
+        bypassUserEligible = {
+          _id: bypassUser._id,
+          name: bypassUser.name,
+          email: bypassUser.email,
+          academicTitle: bypassUser.academicTitle,
+          phoneNumber: bypassUser.phoneNumber,
+          facultyTitle: facultyDetails?.title || 'Unknown',
+          departmentTitle: departmentDetails?.title || 'Unknown',
+          totalReviewsCount,
+          pendingReviewsCount,
+          completedReviewsCount,
+          discrepancyCount,
+          lastLogin: bypassUser.lastLogin,
+          createdAt: bypassUser.createdAt,
+          completionRate:
+            totalReviewsCount > 0
+              ? Math.round((completedReviewsCount / totalReviewsCount) * 100)
+              : 0,
+          isSpecialReviewer: true, // Flag to identify this user in frontend
+        };
+
+        logger.info(
+          `Bypass user ${this.BYPASS_USER_ID} added to eligible reviewers list`
+        );
+      }
+
       const submitterFaculty = (proposal.submitter as any).faculty;
       if (!submitterFaculty) {
         throw new BadRequestError('Proposal submitter has no faculty assigned');
@@ -1167,11 +1313,6 @@ class ReassignReviewController {
       }).select('_id');
 
       const facultyIdList = facultyIds.map((f) => f._id);
-
-      // Get existing reviewers for this proposal
-      const existingReviewerIds = await Review.find({
-        proposal: proposalId,
-      }).distinct('reviewer');
 
       // Find eligible reviewers with comprehensive workload tracking
       const eligibleReviewers = await User.aggregate([
@@ -1295,8 +1436,12 @@ class ReassignReviewController {
         },
       ]);
 
+      if (bypassUserEligible) {
+        eligibleReviewers.unshift(bypassUserEligible); // Add to beginning of list
+      }
+
       logger.info(
-        `Retrieved ${eligibleReviewers.length} eligible reviewers for proposal ${proposalId}`
+        `Retrieved ${eligibleReviewers.length} eligible reviewers for proposal ${proposalId}${bypassUserEligible ? ' (including bypass user)' : ''}`
       );
 
       res.status(200).json({
