@@ -33,6 +33,11 @@ interface IEligibleReviewersResponse {
   };
 }
 
+interface FacultyDocument {
+  _id: string;
+  title: string;
+}
+
 class ReassignReviewController {
   private clusterMap = {
     // Cluster 1
@@ -54,49 +59,85 @@ class ReassignReviewController {
       'Faculty of Dentistry',
       'Faculty of Medicine',
       'Faculty of Basic Medical Sciences',
+      'School of Basic Clinical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
+      'Institute of Child Health',
     ],
     'Faculty of Dentistry': [
       'Faculty of Pharmacy',
       'Faculty of Medicine',
       'Faculty of Basic Medical Sciences',
+      'School of Basic Clinical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
+      'Institute of Child Health',
     ],
     'Faculty of Medicine': [
       'Faculty of Pharmacy',
       'Faculty of Dentistry',
       'Faculty of Basic Medical Sciences',
+      'School of Basic Clinical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
+      'Institute of Child Health',
     ],
     'Faculty of Basic Medical Sciences': [
       'Faculty of Pharmacy',
       'Faculty of Dentistry',
       'Faculty of Medicine',
+      'School of Basic Clinical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
+      'Institute of Child Health',
+    ],
+    'School of Basic Clinical Sciences': [
+      'Faculty of Pharmacy',
+      'Faculty of Dentistry',
+      'Faculty of Medicine',
+      'Faculty of Basic Medical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
+      'Institute of Child Health',
+    ],
+    'Centre of Excellence in Reproductive Health Innovation': [
+      'Faculty of Pharmacy',
+      'Faculty of Dentistry',
+      'Faculty of Medicine',
+      'Faculty of Basic Medical Sciences',
+      'School of Basic Clinical Sciences',
+      'Institute of Child Health',
+    ],
+    'Institute of Child Health': [
+      'Faculty of Pharmacy',
+      'Faculty of Dentistry',
+      'Faculty of Medicine',
+      'Faculty of Basic Medical Sciences',
+      'School of Basic Clinical Sciences',
+      'Centre of Excellence in Reproductive Health Innovation',
     ],
 
     // Cluster 3
     'Faculty of Management Sciences': [
-      'Faculty of Education',
+      'Institute of Education',
       'Faculty of Social Sciences',
       'Faculty of Vocational Education',
     ],
-    'Faculty of Education': [
+    'Institute of Education': [
       'Faculty of Management Sciences',
       'Faculty of Social Sciences',
       'Faculty of Vocational Education',
     ],
     'Faculty of Social Sciences': [
       'Faculty of Management Sciences',
-      'Faculty of Education',
+      'Institute of Education',
       'Faculty of Vocational Education',
     ],
     'Faculty of Vocational Education': [
       'Faculty of Management Sciences',
-      'Faculty of Education',
+      'Institute of Education',
       'Faculty of Social Sciences',
     ],
 
     // Cluster 4
-    'Faculty of Law': ['Faculty of Arts', 'Institute of Education'],
-    'Faculty of Arts': ['Faculty of Law', 'Institute of Education'],
-    'Institute of Education': ['Faculty of Law', 'Faculty of Arts'],
+    'Faculty of Law': ['Faculty of Arts', 'Faculty of Education'],
+    'Faculty of Arts': ['Faculty of Law', 'Faculty of Education'],
+    'Faculty of Education': ['Faculty of Law', 'Faculty of Arts'],
 
     // Cluster 5
     'Faculty of Engineering': [
@@ -123,6 +164,10 @@ class ReassignReviewController {
     Dentistry: 'Faculty of Dentistry',
     Medicine: 'Faculty of Medicine',
     'Basic Medical Sciences': 'Faculty of Basic Medical Sciences',
+    'Basic Clinical Sciences': 'School of Basic Clinical Sciences',
+    'Reproductive Health Innovation':
+      'Centre of Excellence in Reproductive Health Innovation',
+    'Child Health': 'Institute of Child Health',
     'Management Sciences': 'Faculty of Management Sciences',
     Education: 'Faculty of Education',
     'Social Sciences': 'Faculty of Social Sciences',
@@ -470,6 +515,10 @@ class ReassignReviewController {
     proposal: any,
     proposalId: string
   ): Promise<boolean> {
+    logger.info(
+      `Verifying eligibility for reviewer ${reviewerId} on proposal ${proposalId}`
+    );
+
     // Check if reviewer is active and has reviewer role
     const reviewer = await User.findById(reviewerId);
     if (
@@ -478,6 +527,9 @@ class ReassignReviewController {
       !reviewer.isActive ||
       !['accepted', 'added'].includes(reviewer.invitationStatus)
     ) {
+      logger.warn(
+        `Reviewer ${reviewerId} failed basic eligibility checks: role=${reviewer?.role}, isActive=${reviewer?.isActive}, invitationStatus=${reviewer?.invitationStatus}`
+      );
       return false;
     }
 
@@ -488,12 +540,22 @@ class ReassignReviewController {
     });
 
     if (existingAssignment) {
+      logger.warn(
+        `Reviewer ${reviewerId} already assigned to proposal ${proposalId}`
+      );
       return false;
     }
 
     // Check if reviewer is in the same cluster
     if (reviewer.faculty) {
-      return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+      const clusterEligible = await this.isReviewerInSameCluster(
+        reviewer.faculty,
+        proposal
+      );
+      logger.info(
+        `Reviewer ${reviewerId} cluster eligibility: ${clusterEligible}`
+      );
+      return clusterEligible;
     } else {
       // Handle the case where faculty is undefined
       logger.warn(
@@ -509,6 +571,10 @@ class ReassignReviewController {
     proposal: any,
     proposalId: string
   ): Promise<boolean> {
+    logger.info(
+      `Verifying reconciliation eligibility for reviewer ${reviewerId} on proposal ${proposalId}`
+    );
+
     // Check if reviewer is active and has reviewer role
     const reviewer = await User.findById(reviewerId);
     if (
@@ -539,7 +605,14 @@ class ReassignReviewController {
 
     // Check if reviewer is in the same cluster
     if (reviewer.faculty) {
-      return this.isReviewerInSameCluster(reviewer.faculty, proposal);
+      const clusterEligible = await this.isReviewerInSameCluster(
+        reviewer.faculty,
+        proposal
+      );
+      logger.info(
+        `Reconciliation reviewer ${reviewerId} cluster eligibility: ${clusterEligible}`
+      );
+      return clusterEligible;
     } else {
       // Handle the case where faculty is undefined
       logger.warn(
@@ -556,6 +629,7 @@ class ReassignReviewController {
   ): Promise<boolean> {
     const submitterFaculty = (proposal.submitter as any).faculty;
     if (!submitterFaculty) {
+      logger.warn('Proposal submitter has no faculty assigned');
       return false;
     }
 
@@ -564,8 +638,13 @@ class ReassignReviewController {
         ? submitterFaculty
         : (submitterFaculty as any).title;
 
+    logger.info(
+      `Comparing reviewer faculty ${reviewerFacultyId} with submitter faculty: ${rawFacultyTitle}`
+    );
+
     // Remove parenthetical codes and trim
     const cleanedFacultyTitle = rawFacultyTitle.split('(')[0].trim();
+    logger.info(`Cleaned submitter faculty title: ${cleanedFacultyTitle}`);
 
     let canonicalFacultyTitle: keyof typeof this.clusterMap | undefined;
 
@@ -573,15 +652,24 @@ class ReassignReviewController {
     for (const keyword in this.keywordToFacultyMap) {
       if (cleanedFacultyTitle.includes(keyword)) {
         canonicalFacultyTitle = this.keywordToFacultyMap[keyword];
+        logger.info(
+          `Found canonical faculty title: ${canonicalFacultyTitle} using keyword: ${keyword}`
+        );
         break;
       }
     }
 
     if (!canonicalFacultyTitle) {
+      logger.warn(
+        `No canonical faculty title found for: ${cleanedFacultyTitle}`
+      );
       return false;
     }
 
     const eligibleFaculties = this.clusterMap[canonicalFacultyTitle] || [];
+    logger.info(
+      `Eligible faculties in cluster: ${JSON.stringify(eligibleFaculties)}`
+    );
 
     const eligibleKeywordsForRegex = eligibleFaculties
       .map((canonicalTitle) => {
@@ -594,19 +682,38 @@ class ReassignReviewController {
       })
       .filter(Boolean);
 
+    logger.info(
+      `Eligible keywords for regex: ${JSON.stringify(eligibleKeywordsForRegex)}`
+    );
+
     // Build a regex to match any of the keywords in the Faculty title
     const regexPattern = eligibleKeywordsForRegex
       .map((keyword) => `.*${keyword}.*`)
       .join('|');
     const facultyTitleRegex = new RegExp(regexPattern, 'i');
 
-    const facultyIds = await Faculty.find({
+    logger.info(`Faculty title regex pattern: ${regexPattern}`);
+
+    const facultyIds = (await Faculty.find({
       title: { $regex: facultyTitleRegex },
-    }).select('_id');
+    }).select('_id title')) as FacultyDocument[];
 
-    const facultyIdList = facultyIds.map((f) => f._id);
+    logger.info(
+      `Found ${facultyIds.length} matching faculties: ${JSON.stringify(facultyIds.map((f) => ({ id: f._id, title: f.title })))}`
+    );
 
-    return facultyIdList.includes(reviewerFacultyId.toString());
+    // Convert both to strings for comparison
+    const facultyIdStrings = facultyIds.map((f) => f._id.toString());
+    const reviewerFacultyIdString = reviewerFacultyId.toString();
+
+    logger.info(
+      `Checking if reviewer faculty ID ${reviewerFacultyIdString} is in eligible list: ${JSON.stringify(facultyIdStrings)}`
+    );
+
+    const isEligible = facultyIdStrings.includes(reviewerFacultyIdString);
+    logger.info(`Reviewer cluster eligibility result: ${isEligible}`);
+
+    return isEligible;
   }
 
   // Helper method to find best reviewer in cluster for regular reviews
