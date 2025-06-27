@@ -121,6 +121,7 @@ class DecisionsController {
               status: AwardStatus.APPROVED,
               approvedBy: user.id,
               approvedAt: new Date(),
+              fundingAmount: fundingAmount || proposal.estimatedBudget,
               feedbackComments:
                 feedbackComments || 'Your proposal has been approved.',
             },
