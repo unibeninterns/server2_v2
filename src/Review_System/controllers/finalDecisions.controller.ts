@@ -19,12 +19,6 @@ interface IAdminResponse {
   currentPage?: number;
 }
 
-interface IPaginationOptions {
-  page: number;
-  limit: number;
-  sort: Record<string, 1 | -1>;
-}
-
 interface AdminAuthenticatedRequest extends Request {
   user: {
     id: string;
@@ -34,6 +28,7 @@ interface AdminAuthenticatedRequest extends Request {
 
 class DecisionsController {
   // Get proposals ready for final decision
+  // Enhanced getProposalsForDecision method
   getProposalsForDecision = asyncHandler(
     async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
       const user = (req as AdminAuthenticatedRequest).user;
@@ -48,44 +43,246 @@ class DecisionsController {
         limit = 10,
         sort = 'createdAt',
         order = 'desc',
+        faculty,
       } = req.query;
 
-      const query = {
-        reviewStatus: { $in: ['reviewed'] }, // Proposals that have completed review or reconciliation
-      };
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+      const skip = (pageNum - 1) * limitNum;
 
+      // Build aggregation pipeline
+      const pipeline: any[] = [
+        // Match proposals ready for decision
+        {
+          $match: {
+            reviewStatus: { $in: ['reviewed'] },
+            isArchived: { $ne: true },
+          },
+        },
+        // Lookup submitter details
+        {
+          $lookup: {
+            from: 'Users_2',
+            localField: 'submitter',
+            foreignField: '_id',
+            as: 'submitterDetails',
+          },
+        },
+        {
+          $unwind: '$submitterDetails',
+        },
+        // Lookup faculty details
+        {
+          $lookup: {
+            from: 'faculties',
+            localField: 'submitterDetails.faculty',
+            foreignField: '_id',
+            as: 'facultyDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$facultyDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup department details
+        {
+          $lookup: {
+            from: 'departments',
+            localField: 'submitterDetails.department',
+            foreignField: '_id',
+            as: 'departmentDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$departmentDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup reviews
+        {
+          $lookup: {
+            from: 'Reviews',
+            localField: '_id',
+            foreignField: 'proposal',
+            as: 'reviews',
+          },
+        },
+        // Lookup award details
+        {
+          $lookup: {
+            from: 'awards',
+            localField: '_id',
+            foreignField: 'proposal',
+            as: 'awardDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$awardDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Add computed fields for review scores
+        {
+          $addFields: {
+            aiScore: {
+              $let: {
+                vars: {
+                  aiReview: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$reviews',
+                          as: 'review',
+                          cond: {
+                            $and: [
+                              { $eq: ['$$review.reviewType', 'ai'] },
+                              { $eq: ['$$review.status', 'completed'] },
+                            ],
+                          },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+                in: '$$aiReview.totalScore',
+              },
+            },
+            humanScore: {
+              $let: {
+                vars: {
+                  humanReview: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$reviews',
+                          as: 'review',
+                          cond: {
+                            $and: [
+                              { $eq: ['$$review.reviewType', 'human'] },
+                              { $eq: ['$$review.status', 'completed'] },
+                            ],
+                          },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+                in: '$$humanReview.totalScore',
+              },
+            },
+            reconciliationScore: {
+              $let: {
+                vars: {
+                  reconciliationReview: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$reviews',
+                          as: 'review',
+                          cond: {
+                            $and: [
+                              {
+                                $eq: ['$$review.reviewType', 'reconciliation'],
+                              },
+                              { $eq: ['$$review.status', 'completed'] },
+                            ],
+                          },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+                in: '$$reconciliationReview.totalScore',
+              },
+            },
+            finalScore: '$awardDetails.finalScore',
+          },
+        },
+      ];
+
+      // Apply faculty filter if provided
+      if (faculty) {
+        pipeline.push({
+          $match: {
+            'facultyDetails.title': faculty as string,
+          },
+        });
+      }
+
+      // Add projection to clean up response
+      pipeline.push({
+        $project: {
+          projectTitle: 1,
+          submitterType: 1,
+          status: 1,
+          reviewStatus: 1,
+          estimatedBudget: 1,
+          fundingAmount: 1,
+          feedbackComments: 1,
+          aiScore: 1,
+          humanScore: 1,
+          reconciliationScore: 1,
+          finalScore: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          submitter: {
+            name: '$submitterDetails.name',
+            email: '$submitterDetails.email',
+            userType: '$submitterDetails.userType',
+            phoneNumber: '$submitterDetails.phoneNumber',
+            alternativeEmail: '$submitterDetails.alternativeEmail',
+          },
+          faculty: {
+            title: '$facultyDetails.title',
+            code: '$facultyDetails.code',
+          },
+          department: {
+            title: '$departmentDetails.title',
+            code: '$departmentDetails.code',
+          },
+          award: {
+            status: '$awardDetails.status',
+            fundingAmount: '$awardDetails.fundingAmount',
+            approvedBy: '$awardDetails.approvedBy',
+            approvedAt: '$awardDetails.approvedAt',
+          },
+        },
+      });
+
+      // Count total documents before sorting and pagination
+      const countPipeline = [...pipeline, { $count: 'total' }];
+      const totalResult = await Proposal.aggregate(countPipeline);
+      const totalProposals = totalResult[0]?.total || 0;
+
+      // Add sorting
       const sortObj: Record<string, 1 | -1> = {};
       sortObj[sort as string] = order === 'asc' ? 1 : -1;
+      pipeline.push({ $sort: sortObj });
 
-      const options: IPaginationOptions = {
-        page: parseInt(page as string, 10),
-        limit: parseInt(limit as string, 10),
-        sort: sortObj,
-      };
+      // Add pagination
+      pipeline.push({ $skip: skip }, { $limit: limitNum });
 
-      const proposals = await Proposal.find(query)
-        .sort(sortObj)
-        .skip((options.page - 1) * options.limit)
-        .limit(options.limit)
-        .populate({
-          path: 'submitter',
-          select:
-            'name email userType phoneNumber alternativeEmail faculty department',
-          populate: [
-            { path: 'faculty', select: 'title' },
-            { path: 'department', select: 'title' },
-          ],
-        });
+      // Execute aggregation
+      const proposals = await Proposal.aggregate(pipeline);
 
-      const totalProposals = await Proposal.countDocuments(query);
-
-      logger.info(`Admin ${user.id} retrieved proposals for decision`);
+      logger.info(
+        `Admin ${user.id} retrieved proposals list for decision${
+          faculty ? ` filtered by faculty: ${faculty}` : ''
+        }`
+      );
 
       res.status(200).json({
         success: true,
         count: proposals.length,
-        totalPages: Math.ceil(totalProposals / options.limit),
-        currentPage: options.page,
+        totalPages: Math.ceil(totalProposals / limitNum),
+        currentPage: pageNum,
         data: proposals,
       });
     }

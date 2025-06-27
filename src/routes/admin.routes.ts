@@ -8,11 +8,12 @@ import researcherManagementRoutes from '../researchers/routes/researcher-managem
 import assignReviewRoutes from '../Review_System/routes/assignReview.routes';
 import reassignReviewRoutes from '../Review_System/routes/reAssignReviewers.routes';
 import proposalReviewsRoutes from '../Review_System/routes/proposalReviews.routes';
+import finalDecisionsRoutes from '../Review_System/routes/finalDecisions.routes';
 
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
-const adminRateLimiter = rateLimiter(300, 60 * 60 * 1000); // 100 requests per hour
+const adminRateLimiter = rateLimiter(300, 60 * 60 * 1000); // 300 requests per hour
 
 // Get all proposals (with pagination and filtering)
 router.get(
@@ -45,35 +46,6 @@ router.get(
   adminController.getProposalStatistics
 );
 
-// New routes for proposal decision and reporting
-router.get(
-  '/proposals-for-decision',
-  authenticateAdminToken,
-  adminRateLimiter,
-  adminController.getProposalsForDecision
-);
-
-router.patch(
-  '/proposals/:id/status',
-  authenticateAdminToken,
-  adminRateLimiter,
-  adminController.updateProposalStatus
-);
-
-router.post(
-  '/proposals/:proposalId/notify-applicants',
-  authenticateAdminToken,
-  adminRateLimiter,
-  adminController.notifyApplicants
-);
-
-router.get(
-  '/proposals/export-decisions',
-  authenticateAdminToken,
-  adminRateLimiter,
-  adminController.exportDecisionsReport
-);
-
 // Toggle proposal archive status
 router.put(
   '/proposals/:id/archive',
@@ -86,5 +58,6 @@ router.use('/researcher', researcherManagementRoutes);
 router.use('/', assignReviewRoutes);
 router.use('/reassign', reassignReviewRoutes);
 router.use('/proposal-reviews', proposalReviewsRoutes);
+router.use('/decisions', finalDecisionsRoutes);
 
 export default router;
