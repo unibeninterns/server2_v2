@@ -240,6 +240,7 @@ class DecisionsController {
             alternativeEmail: '$submitterDetails.alternativeEmail',
           },
           faculty: {
+            _id: '$facultyDetails._id',
             title: '$facultyDetails.title',
             code: '$facultyDetails.code',
           },
