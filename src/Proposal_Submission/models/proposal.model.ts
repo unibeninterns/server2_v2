@@ -45,6 +45,8 @@ export interface IProposal extends Document {
   feedbackComments?: string; // New field
   isArchived?: boolean; // New field for archiving
   archiveReason?: string; // New field for archiving/unarchiving comment
+  lastNotifiedAt?: Date; // New field for last notification time
+  notificationCount?: number; // New field for notification count
   createdAt: Date;
   updatedAt: Date;
 }
@@ -176,6 +178,14 @@ const ProposalSchema: Schema<IProposal> = new Schema(
     finalScore: { type: Number }, // New field
     fundingAmount: { type: Number }, // New field
     feedbackComments: { type: String }, // New field
+    lastNotifiedAt: {
+      type: Date,
+      default: null,
+    },
+    notificationCount: {
+      type: Number,
+      default: 0,
+    },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },

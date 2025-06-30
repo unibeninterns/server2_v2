@@ -8,6 +8,7 @@ import logger from '../../utils/logger';
 import { IUser } from '../../model/user.model'; // Import IUser interface
 import emailService from '../../services/email.service'; // Import email service
 import Award, { AwardStatus } from '../../Review_System/models/award.model';
+import mongoose from 'mongoose';
 
 // Define a generic response interface for admin controller
 interface IAdminResponse {
@@ -15,6 +16,7 @@ interface IAdminResponse {
   message?: string;
   data?: any;
   count?: number;
+  total?: number;
   totalPages?: number;
   currentPage?: number;
 }
@@ -211,7 +213,9 @@ class DecisionsController {
       if (faculty) {
         pipeline.push({
           $match: {
-            'facultyDetails.title': faculty as string,
+            'facultyDetails._id': new mongoose.Types.ObjectId(
+              faculty as string
+            ),
           },
         });
       }
@@ -282,6 +286,7 @@ class DecisionsController {
       res.status(200).json({
         success: true,
         count: proposals.length,
+        total: totalProposals,
         totalPages: Math.ceil(totalProposals / limitNum),
         currentPage: pageNum,
         data: proposals,
@@ -407,6 +412,12 @@ class DecisionsController {
       logger.info(
         `Admin ${user.id} notified applicant for proposal ${proposalId}`
       );
+
+      // Update notification tracking
+      await Proposal.findByIdAndUpdate(proposalId, {
+        lastNotifiedAt: new Date(),
+        $inc: { notificationCount: 1 },
+      });
 
       res.status(200).json({
         success: true,
