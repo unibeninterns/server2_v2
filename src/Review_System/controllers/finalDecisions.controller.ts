@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Request, Response } from 'express';
 import Proposal, {
   ProposalStatus,
@@ -19,6 +20,16 @@ interface IAdminResponse {
   total?: number;
   totalPages?: number;
   currentPage?: number;
+  statistics?: {
+    totalProposals: number;
+    pendingDecisions: number;
+    approved: number;
+    rejected: number;
+    averageScore: number;
+    proposalsAboveThreshold: number;
+    totalBudgetAboveThreshold: number;
+    approvedBudget: number;
+  };
 }
 
 interface AdminAuthenticatedRequest extends Request {
@@ -29,8 +40,7 @@ interface AdminAuthenticatedRequest extends Request {
 }
 
 class DecisionsController {
-  // Get proposals ready for final decision
-  // Enhanced getProposalsForDecision method
+  // Enhanced getProposalsForDecision method with threshold and budget calculations
   getProposalsForDecision = asyncHandler(
     async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
       const user = (req as AdminAuthenticatedRequest).user;
@@ -46,14 +56,148 @@ class DecisionsController {
         sort = 'createdAt',
         order = 'desc',
         faculty,
+        threshold = 70, // Add threshold parameter
       } = req.query;
 
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
+      const thresholdNum = parseInt(threshold as string, 10);
       const skip = (pageNum - 1) * limitNum;
 
-      // Build aggregation pipeline
-      const pipeline: any[] = [
+      // Build aggregation pipeline for statistics
+      const statisticsPipeline: any[] = [
+        // Match proposals ready for decision
+        {
+          $match: {
+            reviewStatus: { $in: ['reviewed'] },
+            isArchived: { $ne: true },
+          },
+        },
+        // Lookup submitter details
+        {
+          $lookup: {
+            from: 'Users_2',
+            localField: 'submitter',
+            foreignField: '_id',
+            as: 'submitterDetails',
+          },
+        },
+        {
+          $unwind: '$submitterDetails',
+        },
+        // Lookup faculty details
+        {
+          $lookup: {
+            from: 'faculties',
+            localField: 'submitterDetails.faculty',
+            foreignField: '_id',
+            as: 'facultyDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$facultyDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup award details
+        {
+          $lookup: {
+            from: 'awards',
+            localField: '_id',
+            foreignField: 'proposal',
+            as: 'awardDetails',
+          },
+        },
+        {
+          $unwind: {
+            path: '$awardDetails',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Add computed fields
+        {
+          $addFields: {
+            finalScore: '$awardDetails.finalScore',
+            awardStatus: '$awardDetails.status',
+            awardFundingAmount: '$awardDetails.fundingAmount',
+          },
+        },
+        // Apply faculty filter if provided
+        ...(faculty
+          ? [
+              {
+                $match: {
+                  'facultyDetails._id': new mongoose.Types.ObjectId(
+                    faculty as string
+                  ),
+                },
+              },
+            ]
+          : []),
+        // Calculate statistics
+        {
+          $group: {
+            _id: null,
+            totalProposals: { $sum: 1 },
+            pendingDecisions: {
+              $sum: {
+                $cond: [{ $eq: ['$awardStatus', 'pending'] }, 1, 0],
+              },
+            },
+            approved: {
+              $sum: {
+                $cond: [{ $eq: ['$awardStatus', 'approved'] }, 1, 0],
+              },
+            },
+            rejected: {
+              $sum: {
+                $cond: [{ $eq: ['$awardStatus', 'declined'] }, 1, 0],
+              },
+            },
+            totalScoreSum: {
+              $sum: {
+                $cond: [{ $ne: ['$finalScore', null] }, '$finalScore', 0],
+              },
+            },
+            scoredProposalsCount: {
+              $sum: {
+                $cond: [{ $ne: ['$finalScore', null] }, 1, 0],
+              },
+            },
+            proposalsAboveThreshold: {
+              $sum: {
+                $cond: [
+                  { $gte: [{ $ifNull: ['$finalScore', 0] }, thresholdNum] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            totalBudgetAboveThreshold: {
+              $sum: {
+                $cond: [
+                  { $gte: [{ $ifNull: ['$finalScore', 0] }, thresholdNum] },
+                  { $ifNull: ['$estimatedBudget', 0] },
+                  0,
+                ],
+              },
+            },
+            approvedBudget: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$awardStatus', 'approved'] },
+                  { $ifNull: ['$awardFundingAmount', 0] },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ];
+
+      // Build main data pipeline
+      const dataPipeline: any[] = [
         // Match proposals ready for decision
         {
           $match: {
@@ -211,7 +355,7 @@ class DecisionsController {
 
       // Apply faculty filter if provided
       if (faculty) {
-        pipeline.push({
+        dataPipeline.push({
           $match: {
             'facultyDetails._id': new mongoose.Types.ObjectId(
               faculty as string
@@ -221,7 +365,7 @@ class DecisionsController {
       }
 
       // Add projection to clean up response
-      pipeline.push({
+      dataPipeline.push({
         $project: {
           projectTitle: 1,
           submitterType: 1,
@@ -236,6 +380,8 @@ class DecisionsController {
           finalScore: 1,
           createdAt: 1,
           updatedAt: 1,
+          lastNotifiedAt: 1,
+          notificationCount: 1,
           submitter: {
             name: '$submitterDetails.name',
             email: '$submitterDetails.email',
@@ -261,26 +407,48 @@ class DecisionsController {
         },
       });
 
-      // Count total documents before sorting and pagination
-      const countPipeline = [...pipeline, { $count: 'total' }];
-      const totalResult = await Proposal.aggregate(countPipeline);
-      const totalProposals = totalResult[0]?.total || 0;
+      // Count total documents for pagination
+      const countPipeline = [...dataPipeline, { $count: 'total' }];
 
       // Add sorting
       const sortObj: Record<string, 1 | -1> = {};
       sortObj[sort as string] = order === 'asc' ? 1 : -1;
-      pipeline.push({ $sort: sortObj });
+      dataPipeline.push({ $sort: sortObj });
 
       // Add pagination
-      pipeline.push({ $skip: skip }, { $limit: limitNum });
+      dataPipeline.push({ $skip: skip }, { $limit: limitNum });
 
-      // Execute aggregation
-      const proposals = await Proposal.aggregate(pipeline);
+      // Execute all aggregations
+      const [statisticsResult, proposals, totalResult] = await Promise.all([
+        Proposal.aggregate(statisticsPipeline),
+        Proposal.aggregate(dataPipeline),
+        Proposal.aggregate(countPipeline),
+      ]);
+
+      const statistics = statisticsResult[0] || {
+        totalProposals: 0,
+        pendingDecisions: 0,
+        approved: 0,
+        rejected: 0,
+        totalScoreSum: 0,
+        scoredProposalsCount: 0,
+        proposalsAboveThreshold: 0,
+        totalBudgetAboveThreshold: 0,
+        approvedBudget: 0,
+      };
+
+      const totalProposals = totalResult[0]?.total || 0;
+      const averageScore =
+        statistics.scoredProposalsCount > 0
+          ? Math.round(
+              statistics.totalScoreSum / statistics.scoredProposalsCount
+            )
+          : 0;
 
       logger.info(
         `Admin ${user.id} retrieved proposals list for decision${
           faculty ? ` filtered by faculty: ${faculty}` : ''
-        }`
+        } with threshold: ${thresholdNum}`
       );
 
       res.status(200).json({
@@ -290,6 +458,16 @@ class DecisionsController {
         totalPages: Math.ceil(totalProposals / limitNum),
         currentPage: pageNum,
         data: proposals,
+        statistics: {
+          totalProposals: statistics.totalProposals,
+          pendingDecisions: statistics.pendingDecisions,
+          approved: statistics.approved,
+          rejected: statistics.rejected,
+          averageScore,
+          proposalsAboveThreshold: statistics.proposalsAboveThreshold,
+          totalBudgetAboveThreshold: statistics.totalBudgetAboveThreshold,
+          approvedBudget: statistics.approvedBudget,
+        },
       });
     }
   );
