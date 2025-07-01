@@ -540,6 +540,116 @@ class DecisionsController {
       });
     }
   );
+
+  // Notify applicants about decision
+  notifyApplicants = asyncHandler(
+    async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const { proposalId } = req.params; // Assuming proposalId is passed in params
+
+      const proposal = await Proposal.findById(proposalId).populate({
+        path: 'submitter',
+        select: 'email name faculty department',
+        populate: [
+          { path: 'faculty', select: 'title' },
+          { path: 'department', select: 'title' },
+        ],
+      });
+
+      if (!proposal) {
+        throw new NotFoundError('Proposal not found');
+      }
+
+      if (!proposal.submitter) {
+        throw new Error('Submitter not found for notification');
+      }
+
+      const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
+
+      if (!submitterUser.email || !proposal.projectTitle) {
+        throw new Error(
+          'Submitter email or proposal title not found for notification'
+        );
+      }
+
+      await emailService.sendProposalStatusUpdateEmail(
+        submitterUser.email,
+        submitterUser.name,
+        proposal.projectTitle as string, // Explicitly cast to string
+        proposal.status,
+        proposal.fundingAmount,
+        proposal.feedbackComments
+      );
+
+      logger.info(
+        `Admin ${user.id} notified applicant for proposal ${proposalId}`
+      );
+
+      // Update notification tracking
+      await Proposal.findByIdAndUpdate(proposalId, {
+        lastNotifiedAt: new Date(),
+        $inc: { notificationCount: 1 },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Applicant notified successfully',
+      });
+    }
+  );
+
+  // Export decisions report
+  exportDecisionsReport = asyncHandler(
+    async (req: Request, res: Response<string>): Promise<void> => {
+      // Changed Response type to string
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      // Fetch proposals that have a final decision (approved/rejected)
+      const proposals = await Proposal.find({
+        status: { $in: ['approved', 'rejected'] },
+      }).populate({
+        path: 'submitter',
+        select: 'name email faculty department',
+        populate: [
+          { path: 'faculty', select: 'title' },
+          { path: 'department', select: 'title' },
+        ],
+      }); // Populate submitter details
+
+      // Basic CSV generation (for demonstration)
+      let csvContent =
+        'Proposal Title,Submitter Name,Submitter Email,Faculty,Department,Decision,Final Score,Funding Amount,Feedback\n';
+
+      proposals.forEach((proposal) => {
+        const submitterUser = proposal.submitter as unknown as IUser; // Explicitly cast to IUser type
+        const submitterName = submitterUser ? submitterUser.name : 'N/A';
+        const submitterEmail = submitterUser ? submitterUser.email : 'N/A';
+        const facultyName = (submitterUser.faculty as any)?.title || 'N/A'; // Access title from populated faculty
+        const departmentName =
+          (submitterUser.department as any)?.title || 'N/A'; // Access title from populated department
+
+        // eslint-disable-next-line max-len
+        csvContent += `"${proposal.projectTitle}","${submitterName}","${submitterEmail}","${facultyName}","${departmentName}","${proposal.status || 'N/A'}",${proposal.finalScore || 'N/A'},${proposal.fundingAmount || 'N/A'},"${proposal.feedbackComments || 'N/A'}"\n`;
+      });
+
+      res.header('Content-Type', 'text/csv');
+      res.attachment('decisions_report.csv');
+      res.status(200).send(csvContent);
+
+      logger.info(`Admin ${user.id} exported decisions report`);
+    }
+  );
 }
 
 export default new DecisionsController();
