@@ -53,7 +53,7 @@ class DecisionsController {
       const {
         page = 1,
         limit = 10,
-        sort = 'createdAt',
+        sort = 'finalScore',
         order = 'desc',
         faculty,
         threshold = 70, // Add threshold parameter
@@ -411,8 +411,17 @@ class DecisionsController {
       const countPipeline = [...dataPipeline, { $count: 'total' }];
 
       // Add sorting
-      const sortObj: Record<string, 1 | -1> = {};
-      sortObj[sort as string] = order === 'asc' ? 1 : -1;
+      let sortObj: Record<string, 1 | -1> = {};
+
+      if (sort === 'finalScore' || sort === 'score') {
+        // Sort by finalScore from award details
+        sortObj = { finalScore: order === 'asc' ? 1 : -1 };
+      } else if (sort === 'title') {
+        sortObj = { projectTitle: order === 'asc' ? 1 : -1 };
+      } else {
+        sortObj[sort as string] = order === 'asc' ? 1 : -1;
+      }
+
       dataPipeline.push({ $sort: sortObj });
 
       // Add pagination

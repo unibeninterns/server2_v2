@@ -4,6 +4,7 @@ import User from '../../model/user.model';
 import { NotFoundError, UnauthorizedError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
+import Award from '../../Review_System/models/award.model';
 
 interface ResearcherAuthenticatedRequest extends Request {
   user: {
@@ -107,11 +108,33 @@ class ResearcherController {
         );
       }
 
+      let awardData = null;
+
+      // Check if proposal is approved or declined, fetch award data
+      if (proposal.status === 'approved' || proposal.status === 'rejected') {
+        const award = await Award.findOne({ proposal: proposalId })
+          .select('status finalScore feedbackComments fundingAmount')
+          .lean();
+
+        if (award) {
+          awardData = {
+            status: award.status,
+            finalScore: award.finalScore,
+            feedbackComments: award.feedbackComments,
+            fundingAmount:
+              proposal.status === 'approved' ? award.fundingAmount : null,
+          };
+        }
+      }
+
       logger.info(`Researcher ${userId} accessed proposal ${proposalId}`);
 
       res.status(200).json({
         success: true,
-        data: proposal,
+        data: {
+          ...proposal,
+          award: awardData,
+        },
       });
     }
   );

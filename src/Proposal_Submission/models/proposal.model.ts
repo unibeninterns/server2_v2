@@ -133,7 +133,7 @@ const ProposalSchema: Schema<IProposal> = new Schema(
     },
     coInvestigators: [
       {
-        name: { type: String, required: true },
+        name: { type: String },
         department: String,
         faculty: String,
       },
