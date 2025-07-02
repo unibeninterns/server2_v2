@@ -113,13 +113,12 @@ class ResearcherController {
       // Check if proposal is approved or declined, fetch award data
       if (proposal.status === 'approved' || proposal.status === 'rejected') {
         const award = await Award.findOne({ proposal: proposalId })
-          .select('status finalScore feedbackComments fundingAmount')
+          .select('status feedbackComments fundingAmount')
           .lean();
 
         if (award) {
           awardData = {
             status: award.status,
-            finalScore: award.finalScore,
             feedbackComments: award.feedbackComments,
             fundingAmount:
               proposal.status === 'approved' ? award.fundingAmount : null,
