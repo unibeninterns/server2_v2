@@ -123,10 +123,6 @@ class SubmitFullProposalController {
 
       await fullProposal.save();
 
-      // Update proposal status to indicate full proposal submitted
-      proposal.status = 'under_review'; // or create a new status like 'full_proposal_submitted'
-      await proposal.save();
-
       // Send notification emails
       try {
         const reviewerEmails =
@@ -134,7 +130,7 @@ class SubmitFullProposalController {
         await emailService.sendProposalNotificationEmail(
           reviewerEmails,
           user.name,
-          'Full Proposal Submission',
+          proposal.projectTitle || 'Full Proposal Submission',
           proposal.submitterType
         );
 
@@ -142,7 +138,7 @@ class SubmitFullProposalController {
         await emailService.sendSubmissionConfirmationEmail(
           user.email,
           user.name,
-          'Full Proposal',
+          proposal.projectTitle || 'Full Proposal',
           proposal.submitterType
         );
       } catch (error) {

@@ -13,10 +13,7 @@ const storage = multer.diskStorage({
     file: Express.Multer.File,
     cb: (error: Error | null, destination: string) => void
   ) {
-    cb(
-      null,
-      path.join(process.cwd(), 'src', 'uploads', 'documents', 'fullproposals')
-    );
+    cb(null, path.join(process.cwd(), 'src', 'uploads', 'documents'));
   },
   filename: function (
     _req: Request,
