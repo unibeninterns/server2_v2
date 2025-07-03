@@ -13,7 +13,7 @@ import finalDecisionsRoutes from '../Review_System/routes/finalDecisions.routes'
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
-const adminRateLimiter = rateLimiter(300, 60 * 60 * 1000); // 300 requests per hour
+const adminRateLimiter = rateLimiter(2000, 60 * 60 * 1000); // 2000 requests per hour
 
 // Get all proposals (with pagination and filtering)
 router.get(

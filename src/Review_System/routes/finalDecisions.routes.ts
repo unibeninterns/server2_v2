@@ -7,7 +7,7 @@ import {
 const router = express.Router();
 
 // Apply rate limiting and admin authentication to all admin endpoints
-const adminRateLimiter = rateLimiter(1000, 60 * 60 * 1000); // 1000 requests per hour
+const adminRateLimiter = rateLimiter(5000, 60 * 60 * 1000); // 5000 requests per hour
 
 router.get(
   '/proposals-for-decision',

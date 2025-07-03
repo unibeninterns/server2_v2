@@ -10,7 +10,7 @@ import { z } from 'zod';
 const router = Router();
 
 // Rate limiter for admin endpoints
-const adminRateLimiter = rateLimiter(100, 60 * 60 * 1000); // 100 requests per hour
+const adminRateLimiter = rateLimiter(2000, 60 * 60 * 1000); // 2000 requests per hour
 
 // Validation schemas
 const proposalReviewsQuerySchema = z.object({
