@@ -1,7 +1,11 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import logger from '../utils/logger';
 import validateEnv from '../utils/validateEnv';
-import { SubmitterType, ProposalStatus } from '../Proposal_Submission/models/proposal.model';
+import {
+  SubmitterType,
+  ProposalStatus,
+} from '../Proposal_Submission/models/proposal.model';
+import { FullProposalStatus } from '../researchers/models/fullProposal.model';
 import {
   reviewReminderTemplate,
   overdueReviewTemplate,
@@ -18,6 +22,7 @@ import {
   proposalStatusUpdateTemplate,
   proposalArchiveNotificationTemplate,
 } from '../templates/emails';
+import { fullProposalStatusUpdateTemplate } from '../templates/emails/fullProposalStatusUpdateTemplate';
 
 validateEnv();
 
@@ -74,6 +79,19 @@ class EmailService {
     }
   }
 
+  private getFullProposalStatusUpdateSubject(
+    status: ProposalStatus,
+    proposalTitle: string
+  ): string {
+    if (status === FullProposalStatus.APPROVED) {
+      return `Congratulations! Your Full Proposal "${proposalTitle}" Has Been Shortlisted and Approved`;
+    } else if (status === FullProposalStatus.REJECTED) {
+      return `Update on Your Proposal Submission: Decision Made for "${proposalTitle}"`;
+    } else {
+      return `Update on your Proposal Submission: ${proposalTitle}`;
+    }
+  }
+
   async sendAiReviewFailureEmail(
     to: string,
     proposalId: string,
@@ -86,7 +104,9 @@ class EmailService {
         subject: `AI Review Generation Failed for Proposal ${proposalId}`,
         html: aiReviewFailureTemplate(proposalId, errorMessage),
       });
-      logger.info(`AI review failure email sent to: ${to} for proposal ${proposalId}`);
+      logger.info(
+        `AI review failure email sent to: ${to} for proposal ${proposalId}`
+      );
     } catch (error) {
       logger.error(
         `Failed to send AI review failure email to ${to} for proposal ${proposalId}:`,
@@ -109,12 +129,51 @@ class EmailService {
         from: this.emailFrom,
         to: to,
         subject: this.getProposalStatusUpdateSubject(status, projectTitle),
-        html: proposalStatusUpdateTemplate(name, projectTitle, status, fundingAmount, feedbackComments),
+        html: proposalStatusUpdateTemplate(
+          name,
+          projectTitle,
+          status,
+          fundingAmount,
+          feedbackComments
+        ),
       });
-      logger.info(`Proposal status update email sent to: ${to} for proposal ${projectTitle}`);
+      logger.info(
+        `Proposal status update email sent to: ${to} for proposal ${projectTitle}`
+      );
     } catch (error) {
       logger.error(
         `Failed to send proposal status update email to ${to} for proposal ${projectTitle}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw error;
+    }
+  }
+
+  async sendFullProposalStatusUpdateEmail(
+    to: string,
+    name: string,
+    projectTitle: string,
+    status: ProposalStatus,
+    feedbackComments?: string
+  ): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: this.emailFrom,
+        to: to,
+        subject: this.getFullProposalStatusUpdateSubject(status, projectTitle),
+        html: fullProposalStatusUpdateTemplate(
+          name,
+          projectTitle,
+          status,
+          feedbackComments
+        ),
+      });
+      logger.info(
+        `Full proposal status update email sent to: ${to} for proposal ${projectTitle}`
+      );
+    } catch (error) {
+      logger.error(
+        `Failed to send full proposal status update email to ${to} for proposal ${projectTitle}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
       throw error;
@@ -136,9 +195,16 @@ class EmailService {
         from: this.emailFrom,
         to: to,
         subject: subject,
-        html: proposalArchiveNotificationTemplate(name, projectTitle, isArchived, comment),
+        html: proposalArchiveNotificationTemplate(
+          name,
+          projectTitle,
+          isArchived,
+          comment
+        ),
       });
-      logger.info(`${isArchived ? 'Archive' : 'Unarchive'} notification email sent to: ${to} for proposal ${projectTitle}`);
+      logger.info(
+        `${isArchived ? 'Archive' : 'Unarchive'} notification email sent to: ${to} for proposal ${projectTitle}`
+      );
     } catch (error) {
       logger.error(
         `Failed to send ${isArchived ? 'archive' : 'unarchive'} notification email to ${to} for proposal ${projectTitle}:`,

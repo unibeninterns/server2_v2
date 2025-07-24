@@ -6,8 +6,8 @@ import Proposal, {
 import { NotFoundError, UnauthorizedError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
-import { IUser } from '../../model/user.model'; // Import IUser interface
-import emailService from '../../services/email.service'; // Import email service
+import { IUser } from '../../model/user.model';
+import emailService from '../../services/email.service';
 import Award, { AwardStatus } from '../../Review_System/models/award.model';
 import mongoose from 'mongoose';
 
