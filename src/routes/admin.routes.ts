@@ -9,6 +9,7 @@ import assignReviewRoutes from '../Review_System/routes/assignReview.routes';
 import reassignReviewRoutes from '../Review_System/routes/reAssignReviewers.routes';
 import proposalReviewsRoutes from '../Review_System/routes/proposalReviews.routes';
 import finalDecisionsRoutes from '../Review_System/routes/finalDecisions.routes';
+import finalDecisionRoutes from '../Review_System/routes/finalDecisions_2.routes';
 
 const router = express.Router();
 
@@ -59,5 +60,6 @@ router.use('/', assignReviewRoutes);
 router.use('/reassign', reassignReviewRoutes);
 router.use('/proposal-reviews', proposalReviewsRoutes);
 router.use('/decisions', finalDecisionsRoutes);
+router.use('/decisions_2', finalDecisionRoutes);
 
 export default router;
