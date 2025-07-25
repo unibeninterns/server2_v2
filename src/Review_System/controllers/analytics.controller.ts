@@ -28,6 +28,14 @@ class AnalyticsController {
       }
 
       const pipeline = [
+        // Match proposals ready for statistics
+        {
+          $match: {
+            reviewStatus: { $in: ['reviewed'] },
+            isArchived: { $ne: true },
+          },
+        },
+        // Lookup submitter details
         {
           $lookup: {
             from: 'Users_2',
