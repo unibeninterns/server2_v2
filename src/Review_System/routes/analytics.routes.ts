@@ -33,3 +33,5 @@ router.get(
   adminRateLimiter,
   analyticsController.getFacultiesWithApprovedFullProposals
 );
+
+export default router;
