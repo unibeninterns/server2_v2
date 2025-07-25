@@ -376,6 +376,10 @@ class FullProposalDecisionsController {
         FullProposal.aggregate(countPipeline),
       ]);
 
+      logger.info('Statistics:', statisticsResult);
+      logger.info('Full proposals:', fullProposals);
+      logger.info('Total proposals:', totalResult);
+
       const statistics = statisticsResult[0] || {
         totalFullProposals: 0,
         pendingDecisions: 0,
