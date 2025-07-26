@@ -25,6 +25,7 @@ interface IAdminResponse {
     pendingDecisions: number;
     approved: number;
     rejected: number;
+    approvedBudget: number;
     submittedThisMonth: number;
     nearingDeadline: number;
   };
@@ -66,7 +67,7 @@ class FullProposalDecisionsController {
         // First lookup the original proposal
         {
           $lookup: {
-            from: 'proposals',
+            from: 'Proposals',
             localField: 'proposal',
             foreignField: '_id',
             as: 'proposalDetails',
@@ -174,6 +175,15 @@ class FullProposalDecisionsController {
                 ],
               },
             },
+            approvedBudget: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$status', FullProposalStatus.APPROVED] },
+                  { $ifNull: ['$awardDetails.fundingAmount', 0] },
+                  0,
+                ],
+              },
+            },
             submittedThisMonth: {
               $sum: {
                 $cond: [
@@ -220,7 +230,7 @@ class FullProposalDecisionsController {
         // Lookup the original proposal
         {
           $lookup: {
-            from: 'proposals',
+            from: 'Proposals',
             localField: 'proposal',
             foreignField: '_id',
             as: 'proposalDetails',
@@ -376,15 +386,12 @@ class FullProposalDecisionsController {
         FullProposal.aggregate(countPipeline),
       ]);
 
-      logger.info('Statistics:', statisticsResult);
-      logger.info('Full proposals:', fullProposals);
-      logger.info('Total proposals:', totalResult);
-
       const statistics = statisticsResult[0] || {
         totalFullProposals: 0,
         pendingDecisions: 0,
         approved: 0,
         rejected: 0,
+        approvedBudget: 0,
         submittedThisMonth: 0,
         nearingDeadline: 0,
       };
