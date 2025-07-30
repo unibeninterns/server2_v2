@@ -6,10 +6,20 @@ import path from 'path';
 import fs from 'fs';
 import type { AddressInfo } from 'net';
 
-const uploadsDir = path.join(__dirname, 'uploads');
+const getBaseDir = (): string => {
+  // In production, __dirname will be dist/, in dev it will be src/
+  if (process.env.NODE_ENV === 'production') {
+    return __dirname;
+  } else {
+    return __dirname;
+  }
+};
+
+const baseDir = getBaseDir();
+const uploadsDir = path.join(baseDir, 'uploads');
 const documentsUploadDir = path.join(uploadsDir, 'documents');
 
-// Create directories if they don't exist
+// Create directories if they don't exist - this works for both dev and prod
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   logger.info(`Uploads directory created: ${uploadsDir}`);

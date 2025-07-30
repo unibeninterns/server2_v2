@@ -18,9 +18,19 @@ import {
 import logger from './utils/logger';
 import path from 'path';
 
+const getStaticUploadsPath = (): string => {
+  if (process.env.NODE_ENV === 'production') {
+    return path.join(__dirname, 'uploads');
+  } else {
+    return path.join(__dirname, 'uploads');
+  }
+};
+
 const swaggerDocument: any = YAML.load('./swagger.yaml');
 
 const app: Application = express();
+
+app.set('trust proxy', 1);
 
 app.use(compression());
 app.use(helmet(helmetOptions));
@@ -45,7 +55,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(getStaticUploadsPath()));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/api/v2', routes);

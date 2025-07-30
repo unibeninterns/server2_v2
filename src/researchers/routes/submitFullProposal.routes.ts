@@ -6,6 +6,14 @@ import { rateLimiter } from '../../middleware/auth.middleware';
 
 const router = Router();
 
+const getUploadsPath = (): string => {
+  if (process.env.NODE_ENV === 'production') {
+    return path.join(__dirname, '..', '..', 'uploads', 'documents');
+  } else {
+    return path.join(process.cwd(), 'src', 'uploads', 'documents');
+  }
+};
+
 // Configure multer for full proposal document uploads
 const storage = multer.diskStorage({
   destination: function (
@@ -13,7 +21,7 @@ const storage = multer.diskStorage({
     file: Express.Multer.File,
     cb: (error: Error | null, destination: string) => void
   ) {
-    cb(null, path.join(process.cwd(), 'src', 'uploads', 'documents'));
+    cb(null, getUploadsPath());
   },
   filename: function (
     _req: Request,
