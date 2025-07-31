@@ -5,6 +5,7 @@ import { NotFoundError, UnauthorizedError } from '../../utils/customErrors';
 import asyncHandler from '../../utils/asyncHandler';
 import logger from '../../utils/logger';
 import Award from '../../Review_System/models/award.model';
+import FullProposal from '../models/fullProposal.model';
 
 interface ResearcherAuthenticatedRequest extends Request {
   user: {
@@ -109,6 +110,7 @@ class ResearcherController {
       }
 
       let awardData = null;
+      let fullProposalData = null;
 
       // Check if proposal is approved or declined, fetch award data
       if (proposal.status === 'approved' || proposal.status === 'rejected') {
@@ -126,6 +128,27 @@ class ResearcherController {
         }
       }
 
+      // Check for full proposal data if award is approved
+      if (awardData && awardData.status === 'approved') {
+        const fullProposal = await FullProposal.findOne({
+          proposal: proposalId,
+        })
+          .select('status reviewComments reviewedAt submittedAt')
+          .lean();
+
+        if (
+          fullProposal &&
+          ['approved', 'rejected'].includes(fullProposal.status)
+        ) {
+          fullProposalData = {
+            status: fullProposal.status,
+            reviewComments: fullProposal.reviewComments,
+            reviewedAt: fullProposal.reviewedAt,
+            submittedAt: fullProposal.submittedAt,
+          };
+        }
+      }
+
       logger.info(`Researcher ${userId} accessed proposal ${proposalId}`);
 
       res.status(200).json({
@@ -133,6 +156,7 @@ class ResearcherController {
         data: {
           ...proposal,
           award: awardData,
+          fullProposal: fullProposalData,
         },
       });
     }
