@@ -52,7 +52,7 @@ class FullProposalDecisionsController {
       const {
         page = 1,
         limit = 10,
-        sort = 'submittedAt',
+        sort = 'score',
         order = 'desc',
         faculty,
         status,
@@ -326,6 +326,7 @@ class FullProposalDecisionsController {
         $project: {
           docFile: 1,
           status: 1,
+          score: 1,
           submittedAt: 1,
           deadline: 1,
           reviewedAt: 1,
@@ -370,6 +371,11 @@ class FullProposalDecisionsController {
         sortObj = { 'originalProposal.projectTitle': order === 'asc' ? 1 : -1 };
       } else if (sort === 'deadline') {
         sortObj = { deadline: order === 'asc' ? 1 : -1 };
+      } else if (sort === 'score') {
+        sortObj = {
+          score: order === 'asc' ? 1 : -1,
+          submittedAt: -1,
+        };
       } else {
         sortObj[sort as string] = order === 'asc' ? 1 : -1;
       }
@@ -416,6 +422,114 @@ class FullProposalDecisionsController {
     }
   );
 
+  // Assign score to full proposal
+  assignFullProposalScore = asyncHandler(
+    async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const { id } = req.params;
+      const { score } = req.body;
+
+      // Validate score
+      if (!score || score < 1 || score > 100) {
+        throw new Error('Score must be between 1 and 100');
+      }
+
+      const fullProposal = await FullProposal.findById(id);
+
+      if (!fullProposal) {
+        throw new NotFoundError('Full proposal not found');
+      }
+
+      // Check if the original proposal has an approved award
+      const award = await Award.findOne({
+        proposal: fullProposal.proposal,
+        status: AwardStatus.APPROVED,
+      });
+
+      if (!award) {
+        throw new UnauthorizedError(
+          'This full proposal is not associated with an approved award'
+        );
+      }
+
+      // Update the full proposal with score
+      fullProposal.score = score;
+      await fullProposal.save();
+
+      logger.info(
+        `Admin ${user.id} assigned score ${score} to full proposal ${id}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Full proposal score assigned successfully',
+        data: fullProposal,
+      });
+    }
+  );
+
+  editFullProposalScore = asyncHandler(
+    async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const { id } = req.params;
+      const { score } = req.body;
+
+      // Validate score
+      if (!score || score < 1 || score > 100) {
+        throw new Error('Score must be between 1 and 100');
+      }
+
+      const fullProposal = await FullProposal.findById(id);
+
+      if (!fullProposal) {
+        throw new NotFoundError('Full proposal not found');
+      }
+
+      // Ensure a score was previously assigned
+      if (fullProposal.score === undefined || fullProposal.score === null) {
+        throw new Error('No score has been assigned yet to edit');
+      }
+
+      // Check if the original proposal has an approved award
+      const award = await Award.findOne({
+        proposal: fullProposal.proposal,
+        status: AwardStatus.APPROVED,
+      });
+
+      if (!award) {
+        throw new UnauthorizedError(
+          'This full proposal is not associated with an approved award'
+        );
+      }
+
+      // Update the score
+      fullProposal.score = score;
+      await fullProposal.save();
+
+      logger.info(
+        `Admin ${user.id} edited score to ${score} for full proposal ${id}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Full proposal score edited successfully',
+        data: fullProposal,
+      });
+    }
+  );
+
   // Update full proposal status (approve/reject with review comments)
   updateFullProposalStatus = asyncHandler(
     async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
@@ -438,6 +552,13 @@ class FullProposalDecisionsController {
 
       if (!fullProposal) {
         throw new NotFoundError('Full proposal not found');
+      }
+
+      // Check if score is assigned before allowing status update
+      if (fullProposal.score === undefined || fullProposal.score === null) {
+        throw new Error(
+          'Score must be assigned before updating proposal status'
+        );
       }
 
       // Update the full proposal

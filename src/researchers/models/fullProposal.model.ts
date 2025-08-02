@@ -15,6 +15,7 @@ export interface IFullProposal extends Document {
   submitter: Types.ObjectId; // Reference to the user who submitted
   docFile: string; // URL/path to uploaded document
   status: FullProposalStatus;
+  score?: number;
   submittedAt: Date;
   deadline: Date; // July 31, 2025
   reviewedAt?: Date;
@@ -44,6 +45,11 @@ const FullProposalSchema: Schema<IFullProposal> = new Schema(
       type: String,
       enum: Object.values(FullProposalStatus),
       default: FullProposalStatus.SUBMITTED,
+    },
+    score: {
+      type: Number,
+      min: [1, 'Score must be at least 1'],
+      max: [100, 'Score cannot exceed 100'],
     },
     submittedAt: {
       type: Date,

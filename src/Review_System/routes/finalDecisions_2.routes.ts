@@ -42,4 +42,18 @@ router.post(
   fullProposalDecisionsController.notifyFullProposalApplicants
 );
 
+router.post(
+  '/full-proposal/:id/assign-score',
+  authenticateAdminToken,
+  adminRateLimiter,
+  fullProposalDecisionsController.assignFullProposalScore
+);
+
+router.patch(
+  '/full-proposal/:id/edit-score',
+  authenticateAdminToken,
+  adminRateLimiter,
+  fullProposalDecisionsController.editFullProposalScore
+);
+
 export default router;
