@@ -285,7 +285,7 @@ class SubmitFullProposalController {
       }
 
       // Check deadline (August 15, 2025)
-      const deadline = new Date('2025-08-15T23:59:59.999Z');
+      const deadline = new Date('2025-08-14T23:59:59.999Z');
       const now = new Date();
 
       if (now > deadline) {
@@ -385,7 +385,7 @@ class SubmitFullProposalController {
         return;
       }
 
-      const deadline = new Date('2025-08-15T23:59:59.999Z');
+      const deadline = new Date('2025-08-14T23:59:59.999Z');
       const now = new Date();
       const isWithinDeadline = now <= deadline;
       const isApproved = fullProposal.status === 'approved';

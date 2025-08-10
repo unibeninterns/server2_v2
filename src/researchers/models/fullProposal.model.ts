@@ -78,7 +78,7 @@ const FullProposalSchema: Schema<IFullProposal> = new Schema(
     },
     finalSubmissionDeadline: {
       type: Date,
-      default: () => new Date('2025-08-15T23:59:59.999Z'), // August 15, 2025
+      default: () => new Date('2025-08-14T23:59:59.999Z'), // August 15, 2025
     },
     finalSubmittedAt: {
       type: Date,
