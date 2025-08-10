@@ -20,6 +20,10 @@ export interface IFullProposal extends Document {
   deadline: Date; // July 31, 2025
   reviewedAt?: Date;
   reviewComments?: string;
+  finalSubmission?: string; // URL/path to uploaded document
+  submitted: boolean;
+  finalSubmissionDeadline: Date; // August 15, 2025
+  finalSubmittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +69,20 @@ const FullProposalSchema: Schema<IFullProposal> = new Schema(
     reviewComments: {
       type: String,
     },
+    finalSubmission: {
+      type: String,
+    },
+    submitted: {
+      type: Boolean,
+      default: false,
+    },
+    finalSubmissionDeadline: {
+      type: Date,
+      default: () => new Date('2025-08-15T23:59:59.999Z'), // August 15, 2025
+    },
+    finalSubmittedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -74,6 +92,7 @@ const FullProposalSchema: Schema<IFullProposal> = new Schema(
 // Index for efficient queries
 FullProposalSchema.index({ proposal: 1, submitter: 1 });
 FullProposalSchema.index({ status: 1, submittedAt: -1 });
+FullProposalSchema.index({ status: 1, submitted: 1 });
 
 export default mongoose.model<IFullProposal>(
   'FullProposal',

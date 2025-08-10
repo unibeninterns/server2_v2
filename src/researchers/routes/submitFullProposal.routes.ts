@@ -14,7 +14,7 @@ const getUploadsPath = (): string => {
   }
 };
 
-// Configure multer for full proposal document uploads
+// Configure multer for full proposal and final submissiondocument uploads
 const storage = multer.diskStorage({
   destination: function (
     _req: Request,
@@ -28,7 +28,17 @@ const storage = multer.diskStorage({
     file: Express.Multer.File,
     cb: (error: Error | null, filename: string) => void
   ) {
-    cb(null, `fullproposal-${Date.now()}-${path.basename(file.originalname)}`);
+    if (file.fieldname === 'docFile') {
+      cb(
+        null,
+        `fullproposal-${Date.now()}-${path.basename(file.originalname)}`
+      );
+    } else {
+      cb(
+        null,
+        `finalsubmission-${Date.now()}-${path.basename(file.originalname)}`
+      );
+    }
   },
 });
 
@@ -56,15 +66,18 @@ const fileFilter = (
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for full proposals
+    fileSize: 15 * 1024 * 1024, // 15MB limit
   },
   fileFilter,
 });
 
-const documentUpload = upload.fields([{ name: 'docFile', maxCount: 1 }]);
+const documentUpload = upload.fields([
+  { name: 'docFile', maxCount: 1 },
+  { name: 'finalSubmission', maxCount: 1 },
+]);
 
 // Apply rate limiting to submission endpoints
-const submissionRateLimiter = rateLimiter(5, 60 * 60 * 1000); // 5 requests per hour
+const submissionRateLimiter = rateLimiter(10, 60 * 60 * 1000); // 10 requests per hour
 
 // Submit full proposal
 router.post(
@@ -78,6 +91,20 @@ router.post(
 router.get(
   '/can-submit/:proposalId',
   submitFullProposalController.canSubmitFullProposal
+);
+
+// Submit final submission
+router.post(
+  '/submit-final-submission',
+  submissionRateLimiter,
+  documentUpload,
+  submitFullProposalController.submitFinalSubmission
+);
+
+// Check if user can submit final submission
+router.get(
+  '/can-submit-final/:proposalId',
+  submitFullProposalController.canSubmitFinalSubmission
 );
 
 export default router;
