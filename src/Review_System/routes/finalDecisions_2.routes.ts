@@ -56,4 +56,12 @@ router.patch(
   fullProposalDecisionsController.editFullProposalScore
 );
 
+// Edit funding amount for an approved full proposal
+router.patch(
+  '/full-proposal/:id/funding-amount',
+  authenticateAdminToken,
+  adminRateLimiter,
+  fullProposalDecisionsController.editFullProposalFundingAmount
+);
+
 export default router;

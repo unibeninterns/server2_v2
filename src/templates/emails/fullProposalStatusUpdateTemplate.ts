@@ -19,7 +19,7 @@ export const fullProposalStatusUpdateTemplate = (
         <p>Your concept note has been shortlisted for the TETFund Institutional-Based Research (IBR) Grant.</p>
     `;
     bodyContent += `
-        <p>You will recieve further information and next steps instruction by the directorate soon by mail</p>
+        <p>You will recieve further information by the directorate soon, firstly login into your dashboard and click on view deatils for the approved proposal to view the next steps instructions.</p>
     `;
   } else if (status === ProposalStatus.REJECTED) {
     subjectLine = 'Update on Your Full Proposal Submission: Decision Made';

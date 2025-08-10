@@ -541,14 +541,14 @@ class FullProposalDecisionsController {
       }
 
       const { id } = req.params;
-      const { status, reviewComments } = req.body;
+      const { status, reviewComments, fundingAmount } = req.body;
 
       // Validate status
       if (!Object.values(FullProposalStatus).includes(status)) {
         throw new Error('Invalid status provided');
       }
 
-      const fullProposal = await FullProposal.findById(id);
+      const fullProposal = await FullProposal.findById(id).populate('proposal');
 
       if (!fullProposal) {
         throw new NotFoundError('Full proposal not found');
@@ -561,10 +561,35 @@ class FullProposalDecisionsController {
         );
       }
 
+      // Find the associated award
+      const award = await Award.findOne({
+        proposal: fullProposal.proposal,
+        status: AwardStatus.APPROVED,
+      });
+
+      if (!award) {
+        throw new UnauthorizedError(
+          'This full proposal is not associated with an approved award'
+        );
+      }
+
       // Update the full proposal
       fullProposal.status = status;
       fullProposal.reviewComments = reviewComments || '';
       fullProposal.reviewedAt = new Date();
+
+      // If approving the full proposal, update the award funding amount
+      if (
+        status === FullProposalStatus.APPROVED &&
+        fundingAmount !== undefined
+      ) {
+        award.fundingAmount = fundingAmount;
+        await award.save();
+
+        logger.info(
+          `Admin ${user.id} updated funding amount to ${fundingAmount} for full proposal ${id}`
+        );
+      }
 
       await fullProposal.save();
 
@@ -575,7 +600,78 @@ class FullProposalDecisionsController {
       res.status(200).json({
         success: true,
         message: 'Full proposal status updated successfully',
-        data: fullProposal,
+        data: {
+          ...fullProposal.toObject(),
+          award: {
+            fundingAmount: award.fundingAmount,
+            approvedAt: award.approvedAt,
+          },
+        },
+      });
+    }
+  );
+
+  // Edit funding amount for approved full proposal
+  editFullProposalFundingAmount = asyncHandler(
+    async (req: Request, res: Response<IAdminResponse>): Promise<void> => {
+      const user = (req as AdminAuthenticatedRequest).user;
+      if (user.role !== 'admin') {
+        throw new UnauthorizedError(
+          'You do not have permission to access this resource'
+        );
+      }
+
+      const { id } = req.params;
+      const { fundingAmount } = req.body;
+
+      // Validate funding amount
+      if (!fundingAmount || fundingAmount <= 0) {
+        throw new Error('Funding amount must be a positive number');
+      }
+
+      const fullProposal = await FullProposal.findById(id);
+
+      if (!fullProposal) {
+        throw new NotFoundError('Full proposal not found');
+      }
+
+      // Only allow editing funding amount for approved full proposals
+      if (fullProposal.status !== FullProposalStatus.APPROVED) {
+        throw new UnauthorizedError(
+          'Funding amount can only be edited for approved full proposals'
+        );
+      }
+
+      // Find the associated award
+      const award = await Award.findOne({
+        proposal: fullProposal.proposal,
+        status: AwardStatus.APPROVED,
+      });
+
+      if (!award) {
+        throw new UnauthorizedError(
+          'This full proposal is not associated with an approved award'
+        );
+      }
+
+      // Update the funding amount
+      const previousAmount = award.fundingAmount;
+      award.fundingAmount = fundingAmount;
+      await award.save();
+
+      logger.info(
+        `Admin ${user.id} edited funding amount from ${previousAmount} to ${fundingAmount} for full proposal ${id}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Funding amount updated successfully',
+        data: {
+          fullProposalId: fullProposal._id,
+          previousAmount,
+          newAmount: fundingAmount,
+          updatedAt: new Date(),
+        },
       });
     }
   );
